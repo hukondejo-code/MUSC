@@ -1,122 +1,717 @@
 ﻿Imports System.IO
 
-Public Class Form2
-    Private HelyiBeallitasok As New Dictionary(Of String, String)()
-    Private TxtNev As String = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings.dat")
+Partial Public Class Form2
+    ' Designer requirements:
+    ' - FlowLayoutPanel named: flowRows (AutoScroll=True, FlowDirection=TopDown, WrapContents=False)
+    ' - Button named: btnAddRow (text: "+")
+    ' - Button named: BtnMentes (already present in designer)
+
+    Private ReadOnly IniPath As String = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings.ini")
 
     Private Sub Form2_Load(sender As Object, e As EventArgs) Handles MyBase.Load
-        ' 1. Betöltjük a meglévő adatokat
-        If File.Exists(TxtNev) Then
-            For Each sor As String In File.ReadLines(TxtNev)
-                If sor.Contains("=") AndAlso Not sor.StartsWith("::") AndAlso Not sor.Trim() = "" Then
-                    Dim reszek = sor.Split("="c)
-                    HelyiBeallitasok(reszek(0).Trim()) = reszek(1).Trim()
-                End If
-            Next
-        End If
+        Try
+            ' Migrate legacy file if present
+            SettingsStore.MigrateDatToIni(AppDomain.CurrentDomain.BaseDirectory)
 
-        ' 2. Frissítjük a címkéket a betöltött szoftvernevekkel
-        CimkekFrissitese()
+            ' Ensure we have a TabControl to separate Applications and Delays
+            If Not Me.Controls.ContainsKey("tabSettings") Then
+                Dim tab As New TabControl() With {
+                    .Name = "tabSettings",
+                    .Dock = DockStyle.Fill
+                }
+                Dim tpApps As New TabPage("Applications")
+                Dim tpDelays As New TabPage("Delays")
+                tab.TabPages.Add(tpApps)
+                tab.TabPages.Add(tpDelays)
+
+                ' Move existing flowRows into the Applications tab if present
+                If Me.Controls.ContainsKey("flowRows") Then
+                    Dim flow = CType(Me.Controls("flowRows"), FlowLayoutPanel)
+                    Me.Controls.Remove(flow)
+                    flow.Dock = DockStyle.Fill
+                    tpApps.Controls.Add(flow)
+                End If
+
+                ' Create delays FlowLayoutPanel in Delays tab
+                Dim flowDelays As New FlowLayoutPanel() With {
+                    .Name = "flowDelays",
+                    .AutoScroll = True,
+                    .FlowDirection = FlowDirection.TopDown,
+                    .WrapContents = False,
+                    .Dock = DockStyle.Fill
+                }
+                tpDelays.Controls.Add(flowDelays)
+
+                ' Insert the tab control into the form
+                Me.Controls.Add(tab)
+                ' Ensure tab is behind any toolstrip or other top-level controls
+                tab.SendToBack()
+            End If
+
+            ' Populate UI rows from settings
+            Dim data = If(File.Exists(IniPath), SettingsStore.ReadSettingsFromFile(IniPath), New Dictionary(Of String, String)())
+
+            Dim i As Integer = 1
+            Dim found As Boolean = False
+            While data.ContainsKey($"NEV_{i}") OrElse data.ContainsKey($"MAPPA_{i}") OrElse data.ContainsKey($"EXE_{i}") OrElse data.ContainsKey($"CFG_{i}") OrElse data.ContainsKey($"VAR_{i}")
+                Dim name = If(data.ContainsKey($"NEV_{i}"), data($"NEV_{i}"), String.Empty)
+                Dim mappa = If(data.ContainsKey($"MAPPA_{i}"), data($"MAPPA_{i}"), String.Empty)
+                Dim exe = If(data.ContainsKey($"EXE_{i}"), data($"EXE_{i}"), String.Empty)
+                Dim cfg = If(data.ContainsKey($"CFG_{i}"), data($"CFG_{i}"), String.Empty)
+                Dim vr = If(data.ContainsKey($"VAR_{i}"), data($"VAR_{i}"), "1")
+                AddRow(name, mappa, exe, cfg, vr)
+                found = True
+                i += 1
+            End While
+
+            If Not found Then
+                ' start with one empty row
+                AddRow(String.Empty, String.Empty, String.Empty, String.Empty, "1")
+            End If
+
+            ' Ensure CFG filenames are reflected in row labels even if indexes or data were inconsistent
+            Try
+                If Me.Controls.ContainsKey("flowRows") Then
+                    Dim container = CType(Me.Controls("flowRows"), FlowLayoutPanel)
+                    Dim idx2 As Integer = 1
+                    For Each ctrl As Control In container.Controls
+                        Dim p = TryCast(ctrl, Panel)
+                        If p Is Nothing Then Continue For
+                        Dim info = TryCast(p.Tag, Dictionary(Of String, String))
+                        If info Is Nothing Then Continue For
+
+                        Dim key = $"CFG_{idx2}"
+                        If data.ContainsKey(key) AndAlso Not String.IsNullOrEmpty(data(key)) Then
+                            Dim cfgVal = data(key)
+                            info("CFG") = cfgVal
+                            ' update label
+                            Dim lbl = p.Controls.OfType(Of Label)().FirstOrDefault()
+                            If lbl IsNot Nothing Then
+                                Try
+                                    Dim cfgShort = Path.GetFileName(cfgVal)
+                                    If Not String.IsNullOrEmpty(lbl.Text) AndAlso Not lbl.Text.StartsWith("Not Defined") Then
+                                        If lbl.Text.Contains("(Cfg:") Then
+                                            ' replace existing Cfg portion
+                                            lbl.Text = System.Text.RegularExpressions.Regex.Replace(lbl.Text, "\(Cfg:.*\)", "(Cfg: " & cfgShort & ")")
+                                        Else
+                                            lbl.Text &= " (Cfg: " & cfgShort & ")"
+                                        End If
+                                    Else
+                                        lbl.Text = "Cfg: " & cfgShort
+                                    End If
+                                    lbl.ForeColor = Color.Green
+                                Catch
+                                End Try
+                            End If
+                        End If
+
+                        idx2 += 1
+                    Next
+                End If
+            Catch
+            End Try
+
+            ' Resize handler to adapt row widths
+            AddHandler Me.Resize, Sub() AdjustRowWidths()
+            AdjustRowWidths()
+
+        Catch ex As Exception
+            MessageBox.Show("Load error: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
     End Sub
 
-    ' Címkéket frissítő rutin
-    Private Sub CimkekFrissitese()
-        For i As Integer = 1 To 8
-            Dim lblNev As String = "LblStatusz" & i
-            Dim kulcsNev As String = "NEV_" & i
-
-            Dim celLabel As Label = CType(Me.Controls.Find(lblNev, True).FirstOrDefault(), Label)
-
-            If celLabel IsNot Nothing Then
-                If HelyiBeallitasok.ContainsKey(kulcsNev) Then
-                    celLabel.Text = "Selected: " & HelyiBeallitasok(kulcsNev) & ""
-                    celLabel.ForeColor = Color.Green
-                Else
-                    celLabel.Text = "Not Defined!"
-                    celLabel.ForeColor = Color.Red
-                End If
-            End If
+    Private Sub AdjustRowWidths()
+        Dim container = TryCast(Me.Controls.Find("flowRows", True).FirstOrDefault(), FlowLayoutPanel)
+        If container Is Nothing Then Return
+        For Each ctrl As Control In container.Controls
+            ctrl.Width = Math.Max(200, container.ClientSize.Width - 25)
         Next
     End Sub
 
-    ' Közös tallózó rutin
-    Private Sub Tallozas(index As Integer)
-        Using ofd As New OpenFileDialog()
-            ofd.Filter = "Executables (*.exe)|*.exe|All Filetypes (*.*)|*.*"
-            ofd.Title = index & ". executable selected."
+    ' Add a new row to the FlowLayoutPanel
+    Private Sub AddRow(Optional initialName As String = "", Optional initialPath As String = "", Optional initialExe As String = "", Optional initialCfg As String = "", Optional initialVar As String = "2")
+        Dim container = TryCast(Me.Controls.Find("flowRows", True).FirstOrDefault(), FlowLayoutPanel)
+        If container Is Nothing Then
+            MessageBox.Show("flowRows panel is missing in the designer. Add a FlowLayoutPanel named 'flowRows'.")
+            Return
+        End If
 
-            If ofd.ShowDialog() = DialogResult.OK Then
-                Dim teljesUtvonal As String = ofd.FileName
-                Dim mappa As String = Path.GetDirectoryName(teljesUtvonal)
-                Dim exeNev As String = Path.GetFileName(teljesUtvonal)
-                Dim psNev As String = Path.GetFileNameWithoutExtension(teljesUtvonal)
+        Dim p As New Panel() With {
+            .Height = 34,
+            .Width = Math.Max(200, container.ClientSize.Width - 25),
+            .Padding = New Padding(2)
+        }
 
-                HelyiBeallitasok("NEV_" & index) = psNev
-                HelyiBeallitasok("MAPPA_" & index) = mappa
-                HelyiBeallitasok("EXE_" & index) = exeNev
+        Dim lbl As New Label() With {
+            .AutoSize = False,
+            .Width = 300,
+            .Height = 28,
+            .Left = 4,
+            .Top = 4,
+            .TextAlign = ContentAlignment.MiddleLeft
+        }
 
-                If Not HelyiBeallitasok.ContainsKey("VAR_" & index) Then
-                    HelyiBeallitasok("VAR_" & index) = "2"
+        Dim btnBrowse As New Button() With {
+            .Text = "Browse",
+            .Width = 70,
+            .Left = lbl.Right + 6,
+            .Top = 4
+        }
+
+        Dim btnCfg As New Button() With {
+            .Text = "Cfg",
+            .Width = 50,
+            .Left = btnBrowse.Right + 6,
+            .Top = 4
+        }
+
+        Dim btnOpenCfg As New Button() With {
+            .Text = "Open",
+            .Width = 60,
+            .Left = btnCfg.Right + 6,
+            .Top = 4
+        }
+
+        ' VAR textbox inside the row (editable directly)
+        Dim idxDisplayRow = container.Controls.Count + 1
+        Dim txtVarRow As New TextBox() With {
+            .Name = "txtVARRow_" & idxDisplayRow,
+            .Width = 60,
+            .Left = btnOpenCfg.Right + 6,
+            .Top = 6,
+            .Text = initialVar
+        }
+
+        Dim btnRemove As New Button() With {
+            .Text = "Remove",
+            .Width = 70,
+            .Left = txtVarRow.Right + 6,
+            .Top = 4
+        }
+
+        ' Store data in Tag
+        Dim info As New Dictionary(Of String, String)()
+        info("NAME") = initialName
+        info("PATH") = initialPath
+        info("EXE") = initialExe
+        info("CFG") = initialCfg
+        info("VAR") = initialVar
+        p.Tag = info
+
+        ' Set label to show the application name and optionally the config filename
+        If Not String.IsNullOrEmpty(initialName) Then
+            lbl.Text = "Selected: " & initialName
+            lbl.ForeColor = Color.Green
+            If Not String.IsNullOrEmpty(initialCfg) Then
+                Try
+                    Dim cfgShort = Path.GetFileName(initialCfg)
+                    lbl.Text &= " (Cfg: " & cfgShort & ")"
+                Catch
+                End Try
+            End If
+        ElseIf Not String.IsNullOrEmpty(initialCfg) Then
+            ' No app name, but config exists
+            Try
+                Dim cfgShort = Path.GetFileName(initialCfg)
+                lbl.Text = "Cfg: " & cfgShort
+                lbl.ForeColor = Color.Green
+            Catch
+                lbl.Text = "Cfg: (unknown)"
+                lbl.ForeColor = Color.Green
+            End Try
+        Else
+            lbl.Text = "Not Defined!"
+            lbl.ForeColor = Color.Red
+        End If
+
+        AddHandler btnBrowse.Click, Sub(s, e)
+                                        Using ofd As New OpenFileDialog()
+                                            ofd.Filter = "Executables (*.exe)|*.exe|All Filetypes (*.*)|*.*"
+                                            If ofd.ShowDialog() = DialogResult.OK Then
+                                                Dim full = ofd.FileName
+                                                Dim folder = Path.GetDirectoryName(full)
+                                                Dim exeName = Path.GetFileName(full)
+                                                Dim shortName = Path.GetFileNameWithoutExtension(full)
+
+                                                info("NAME") = shortName
+                                                info("PATH") = folder
+                                                info("EXE") = exeName
+
+                                                lbl.Text = "Selected: " & shortName
+                                                lbl.ForeColor = Color.Green
+                                            End If
+                                        End Using
+                                    End Sub
+
+        ' Browse for config file (ini/cfg/xml)
+        AddHandler btnCfg.Click, Sub(s, e)
+                                     Using ofd As New OpenFileDialog()
+                                         ofd.Filter = "Config Files (*.ini;*.cfg;*.xml)|*.ini;*.cfg;*.xml|All Files (*.*)|*.*"
+                                         ofd.Title = "Select configuration file for this application"
+                                         ' Start browsing in the application's folder if available
+                                         Dim startDir As String = String.Empty
+                                         If info.ContainsKey("PATH") Then startDir = info("PATH")
+                                         If String.IsNullOrEmpty(startDir) OrElse Not Directory.Exists(startDir) Then
+                                             startDir = AppDomain.CurrentDomain.BaseDirectory
+                                         End If
+                                         Try
+                                             ofd.InitialDirectory = startDir
+                                         Catch
+                                         End Try
+
+                                         If ofd.ShowDialog() = DialogResult.OK Then
+                                             Dim cfgFull = ofd.FileName
+                                             info("CFG") = cfgFull
+                                             ' Update label to show cfg filename (short)
+                                             Dim cfgShort = Path.GetFileName(cfgFull)
+                                             If String.IsNullOrEmpty(lbl.Text) OrElse lbl.Text.StartsWith("Not Defined") Then
+                                                 lbl.Text = "Cfg: " & cfgShort
+                                                 lbl.ForeColor = Color.Green
+                                             Else
+                                                 lbl.Text = lbl.Text & " (Cfg: " & cfgShort & ")"
+                                             End If
+                                         End If
+                                     End Using
+                                 End Sub
+
+        ' Open the configured config file with default editor
+        AddHandler btnOpenCfg.Click, Sub(s, e)
+                                         Dim cfgPath As String = If(info.ContainsKey("CFG"), info("CFG"), String.Empty)
+                                         If String.IsNullOrEmpty(cfgPath) Then
+                                             MessageBox.Show("No configuration file selected for this row.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                                             Return
+                                         End If
+                                         If Not Path.IsPathRooted(cfgPath) Then
+                                             cfgPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, cfgPath)
+                                         End If
+                                         If Not File.Exists(cfgPath) Then
+                                             MessageBox.Show($"Config file not found: {cfgPath}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                                             Return
+                                         End If
+
+                                         ' Hide the settings form while the external editor is open, then restore it when the editor exits
+                                         Try
+                                             Me.Hide()
+                                         Catch
+                                         End Try
+
+                                         Dim startedProc As Process = Nothing
+                                         Try
+                                             Dim psi As New ProcessStartInfo(cfgPath) With {.UseShellExecute = True}
+                                             startedProc = Process.Start(psi)
+                                         Catch ex As Exception
+                                             MessageBox.Show("Failed to open config: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                                         End Try
+
+                                         ' Monitor the external editor: if we have a process object, wait for exit; otherwise poll file lock
+                                         Task.Run(Sub()
+                                                      Try
+                                                          If startedProc IsNot Nothing Then
+                                                              Try
+                                                                  startedProc.WaitForExit()
+                                                              Catch
+                                                              End Try
+                                                          Else
+                                                              ' Poll until the file is writable (editor closed) or until timeout
+                                                              Dim timeout = DateTime.Now.AddMinutes(10)
+                                                              While DateTime.Now < timeout
+                                                                  Try
+                                                                      Using fs = File.Open(cfgPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None)
+                                                                          fs.Close()
+                                                                          Exit While
+                                                                      End Using
+                                                                  Catch
+                                                                      Threading.Thread.Sleep(500)
+                                                                  End Try
+                                                              End While
+                                                          End If
+                                                      Catch
+                                                      End Try
+                                                      Try
+                                                          Me.Invoke(Sub()
+                                                                        If Me.WindowState = FormWindowState.Minimized Then Me.WindowState = FormWindowState.Normal
+                                                                        Me.Show()
+                                                                        Me.BringToFront()
+                                                                        Me.Activate()
+                                                                    End Sub)
+                                                      Catch
+                                                      End Try
+                                                  End Sub)
+                                     End Sub
+
+        ' VAR textbox inside the row (editable directly)
+        AddHandler txtVarRow.TextChanged, Sub(s, e)
+                                              Try
+                                                  Dim txt = txtVarRow.Text
+                                                  If String.IsNullOrEmpty(txt) Then
+                                                      txtVarRow.Text = "1"
+                                                      txtVarRow.SelectionStart = txtVarRow.Text.Length
+                                                      Return
+                                                  End If
+
+                                                  Dim sb As New System.Text.StringBuilder()
+                                                  For Each ch As Char In txt
+                                                      If Char.IsDigit(ch) Then sb.Append(ch)
+                                                  Next
+                                                  Dim digits = sb.ToString()
+                                                  If String.IsNullOrEmpty(digits) Then digits = "1"
+
+                                                  Dim parsed As Integer
+                                                  If Not Integer.TryParse(digits, parsed) Then parsed = 1
+                                                  If parsed < 1 Then parsed = 1
+
+                                                  Dim newText = parsed.ToString()
+                                                  If newText <> txtVarRow.Text Then
+                                                      txtVarRow.Text = newText
+                                                      txtVarRow.SelectionStart = txtVarRow.Text.Length
+                                                  End If
+
+                                                  ' update Tag
+                                                  TryCast(p.Tag, Dictionary(Of String, String))("VAR") = txtVarRow.Text
+
+                                                  ' update corresponding delay textbox if present
+                                                  Try
+                                                      Dim flowDelays = TryCast(Me.Controls.Find("flowDelays", True).FirstOrDefault(), FlowLayoutPanel)
+                                                      If flowDelays IsNot Nothing Then
+                                                          Dim idxRow = container.Controls.IndexOf(p)
+                                                          If idxRow >= 0 AndAlso idxRow < flowDelays.Controls.Count Then
+                                                              Dim delayPanel = TryCast(flowDelays.Controls(idxRow), Panel)
+                                                              If delayPanel IsNot Nothing Then
+                                                                  Dim tb = delayPanel.Controls.OfType(Of TextBox)().FirstOrDefault()
+                                                                  If tb IsNot Nothing AndAlso tb.Text <> txtVarRow.Text Then tb.Text = txtVarRow.Text
+                                                              End If
+                                                          End If
+                                                      End If
+                                                  Catch
+                                                  End Try
+                                              Catch
+                                              End Try
+                                          End Sub
+        ' Restrict input to digits only on keypress for row textbox
+        AddHandler txtVarRow.KeyPress, Sub(senderLocal, ke)
+                                           If Not Char.IsControl(ke.KeyChar) AndAlso Not Char.IsDigit(ke.KeyChar) Then
+                                               ke.Handled = True
+                                           End If
+                                       End Sub
+
+        AddHandler btnRemove.Click, Sub(s, e)
+                                        ' Remove corresponding delay control if present
+                                        Dim delayPanel = TryCast(Me.Controls.Find("flowDelays", True).FirstOrDefault(), FlowLayoutPanel)
+                                        Dim removeIndex = container.Controls.IndexOf(p)
+                                        If delayPanel IsNot Nothing AndAlso removeIndex >= 0 AndAlso removeIndex < delayPanel.Controls.Count Then
+                                            delayPanel.Controls.RemoveAt(removeIndex)
+                                        End If
+                                        container.Controls.Remove(p)
+
+                                        ' Reindex remaining rows and delays and persist settings
+                                        Try
+                                            ReindexAndSyncDelays()
+                                            SaveSettingsToIni()
+                                        Catch
+                                        End Try
+                                    End Sub
+
+        p.Controls.Add(lbl)
+        p.Controls.Add(btnBrowse)
+        p.Controls.Add(btnCfg)
+        p.Controls.Add(btnOpenCfg)
+        p.Controls.Add(txtVarRow)
+        p.Controls.Add(btnRemove)
+
+        container.Controls.Add(p)
+
+        ' Also add a corresponding delay textbox in the Delays tab (flowDelays)
+        Try
+            Dim flowDelays = TryCast(Me.Controls.Find("flowDelays", True).FirstOrDefault(), FlowLayoutPanel)
+            If flowDelays IsNot Nothing Then
+                Dim delayPanel As New Panel() With {
+                    .Height = 34,
+                    .Width = Math.Max(200, flowDelays.ClientSize.Width - 25),
+                    .Padding = New Padding(2)
+                }
+
+                Dim lblIdx As New Label() With {
+                    .AutoSize = False,
+                    .Width = 200,
+                    .Height = 28,
+                    .Left = 4,
+                    .Top = 4,
+                    .TextAlign = ContentAlignment.MiddleLeft
+                }
+                Dim idxDisplay As Integer = container.Controls.IndexOf(p) + 1
+                If Not String.IsNullOrEmpty(initialName) Then
+                    lblIdx.Text = "#" & idxDisplay & " - " & initialName
+                Else
+                    lblIdx.Text = "#" & idxDisplay & ""
                 End If
 
-                ' Azonnal frissítjük a képernyőn a feliratot a tallózás után
-                CimkekFrissitese()
-                MessageBox.Show(exeNev & " executable defined.")
+                Dim txtVar As New TextBox() With {
+                    .Name = "txtVAR_" & idxDisplay,
+                    .Width = 60,
+                    .Left = lblIdx.Right + 6,
+                    .Top = 6,
+                    .Text = initialVar
+                }
+                ' Keep VAR in sync with row Tag and validate value (min 1). Also sanitize pasted text.
+                AddHandler txtVar.TextChanged, Sub(s, e)
+                                                   Try
+                                                       Dim txt = txtVar.Text
+                                                       If String.IsNullOrEmpty(txt) Then
+                                                           txtVar.Text = "1"
+                                                           txtVar.SelectionStart = txtVar.Text.Length
+                                                           Return
+                                                       End If
+
+                                                       ' remove non-digit characters
+                                                       Dim sb As New System.Text.StringBuilder()
+                                                       For Each ch As Char In txt
+                                                           If Char.IsDigit(ch) Then sb.Append(ch)
+                                                       Next
+                                                       Dim digits = sb.ToString()
+                                                       If String.IsNullOrEmpty(digits) Then digits = "1"
+
+                                                       Dim parsed As Integer
+                                                       If Not Integer.TryParse(digits, parsed) Then parsed = 1
+                                                       If parsed < 1 Then parsed = 1
+
+                                                       Dim newText = parsed.ToString()
+                                                       If newText <> txtVar.Text Then
+                                                           txtVar.Text = newText
+                                                           txtVar.SelectionStart = txtVar.Text.Length
+                                                       End If
+
+                                                       TryCast(p.Tag, Dictionary(Of String, String))("VAR") = txtVar.Text
+                                                   Catch
+                                                   End Try
+                                               End Sub
+                ' Restrict input to digits only on keypress
+                AddHandler txtVar.KeyPress, Sub(senderLocal, ke)
+                                                If Not Char.IsControl(ke.KeyChar) AndAlso Not Char.IsDigit(ke.KeyChar) Then
+                                                    ke.Handled = True
+                                                End If
+                                            End Sub
+
+                delayPanel.Controls.Add(lblIdx)
+                delayPanel.Controls.Add(txtVar)
+                flowDelays.Controls.Add(delayPanel)
             End If
-        End Using
+        Catch
+        End Try
     End Sub
 
-    ' Gombok eseménykezelői
-    Private Sub BtnTalloz1_Click(sender As Object, e As EventArgs) Handles BtnTalloz1.Click
-        Tallozas(1)
+    Private Sub btnAddRow_Click(sender As Object, e As EventArgs) Handles btnAddRow.Click
+        AddRow()
     End Sub
 
-    Private Sub BtnTalloz2_Click(sender As Object, e As EventArgs) Handles BtnTalloz2.Click
-        Tallozas(2)
-    End Sub
-
-    Private Sub BtnTalloz3_Click(sender As Object, e As EventArgs) Handles BtnTalloz3.Click
-        Tallozas(3)
-    End Sub
-
-    Private Sub BtnTalloz4_Click(sender As Object, e As EventArgs) Handles BtnTalloz4.Click
-        Tallozas(4)
-    End Sub
-
-    Private Sub BtnTalloz5_Click(sender As Object, e As EventArgs) Handles BtnTalloz5.Click
-        Tallozas(5)
-    End Sub
-
-    Private Sub BtnTalloz6_Click(sender As Object, e As EventArgs) Handles BtnTalloz6.Click
-        Tallozas(6)
-    End Sub
-
-    Private Sub BtnTalloz7_Click(sender As Object, e As EventArgs) Handles BtnTalloz7.Click
-        Tallozas(7)
-    End Sub
-
-    Private Sub BtnTalloz8_Click(sender As Object, e As EventArgs) Handles BtnTalloz8.Click
-        Tallozas(8)
-    End Sub
-
-    ' Mentés gomb eseménye
     Private Sub BtnMentes_Click(sender As Object, e As EventArgs) Handles BtnMentes.Click
         Try
-            Dim kiirandoSorok As New List(Of String)()
-            For Each kulcs In HelyiBeallitasok.Keys
-                kiirandoSorok.Add(kulcs & "=" & HelyiBeallitasok(kulcs))
+            ' Read existing non-row settings to preserve them
+            Dim existing As New Dictionary(Of String, String)()
+            If File.Exists(IniPath) Then existing = SettingsStore.ReadSettingsFromFile(IniPath)
+
+            Dim result As New Dictionary(Of String, String)()
+            ' preserve other keys (exclude row keys NEV_/MAPPA_/EXE_/VAR_/CFG_)
+            For Each kvp In existing
+                If Not kvp.Key.StartsWith("NEV_") AndAlso Not kvp.Key.StartsWith("MAPPA_") AndAlso Not kvp.Key.StartsWith("EXE_") AndAlso Not kvp.Key.StartsWith("VAR_") AndAlso Not kvp.Key.StartsWith("CFG_") Then
+                    result(kvp.Key) = kvp.Value
+                End If
             Next
 
-            File.WriteAllLines(TxtNev, kiirandoSorok)
-            ' -----------------------------------------------------------------
-            ' ÚJ SOR: Frissítjük a Form1 beállításait és füleit az új adatokkal
-            ' -----------------------------------------------------------------
+            ' Enumerate rows in order
+            Dim container = TryCast(Me.Controls.Find("flowRows", True).FirstOrDefault(), FlowLayoutPanel)
+            If container Is Nothing Then
+                MessageBox.Show("flowRows panel is missing in the designer. Add a FlowLayoutPanel named 'flowRows'.")
+                Return
+            End If
+
+            Dim index As Integer = 1
+            For Each ctrl As Control In container.Controls
+                Dim p = TryCast(ctrl, Panel)
+                If p Is Nothing Then Continue For
+                Dim info = TryCast(p.Tag, Dictionary(Of String, String))
+                If info Is Nothing Then Continue For
+
+                Dim name = If(info.ContainsKey("NAME"), info("NAME"), String.Empty)
+                Dim path = If(info.ContainsKey("PATH"), info("PATH"), String.Empty)
+                Dim exe = If(info.ContainsKey("EXE"), info("EXE"), String.Empty)
+                Dim cfg = If(info.ContainsKey("CFG"), info("CFG"), String.Empty)
+
+                If String.IsNullOrEmpty(name) AndAlso String.IsNullOrEmpty(exe) Then
+                    ' skip empty rows
+                    Continue For
+                End If
+
+                result($"NEV_{index}") = name
+                result($"MAPPA_{index}") = path
+                result($"EXE_{index}") = exe
+                result($"VAR_{index}") = If(info.ContainsKey("VAR"), info("VAR"), "1")
+                ' Store CFG path relative to app base when possible
+                If Not String.IsNullOrEmpty(cfg) Then
+                    Try
+                        Dim baseDir = System.IO.Path.GetFullPath(AppDomain.CurrentDomain.BaseDirectory)
+                        If Not baseDir.EndsWith(System.IO.Path.DirectorySeparatorChar) Then baseDir &= System.IO.Path.DirectorySeparatorChar
+                        Dim fullCfg = System.IO.Path.GetFullPath(cfg)
+                        If fullCfg.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase) Then
+                            ' store relative path
+                            result($"CFG_{index}") = fullCfg.Substring(baseDir.Length)
+                        Else
+                            result($"CFG_{index}") = fullCfg
+                        End If
+                    Catch
+                        result($"CFG_{index}") = cfg
+                    End Try
+                End If
+                index += 1
+            Next
+
+            ' Write to INI
+            SettingsStore.WriteSettingsToFile(IniPath, result)
+
+            ' Refresh Form1 and hide (do not dispose so user can re-open settings)
             Form1.BeallitasokBetoltese()
-            ' -----------------------------------------------------------------
-            MessageBox.Show("Settings saved successfuly!", "Save", MessageBoxButtons.OK, MessageBoxIcon.Information)
-            Me.Close()
+            MessageBox.Show("Settings saved successfully!", "Save", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Me.Hide()
         Catch ex As Exception
-            MessageBox.Show("Save error: " & ex.Message)
+            MessageBox.Show("Save error: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
+    End Sub
+
+    ' Reindex delay labels and textbox names to match current application rows
+    Private Sub ReindexAndSyncDelays()
+        Try
+            Dim flowRows = TryCast(Me.Controls.Find("flowRows", True).FirstOrDefault(), FlowLayoutPanel)
+            Dim flowDelays = TryCast(Me.Controls.Find("flowDelays", True).FirstOrDefault(), FlowLayoutPanel)
+            If flowRows Is Nothing OrElse flowDelays Is Nothing Then Return
+
+            ' Rebuild delay controls to match rows
+            Dim newDelays As New List(Of Tuple(Of String, String))()
+            For i As Integer = 0 To flowRows.Controls.Count - 1
+                Dim p = TryCast(flowRows.Controls(i), Panel)
+                If p Is Nothing Then Continue For
+                Dim info = TryCast(p.Tag, Dictionary(Of String, String))
+                Dim name = If(info.ContainsKey("NAME"), info("NAME"), String.Empty)
+                Dim varv = If(info.ContainsKey("VAR"), info("VAR"), "2")
+                newDelays.Add(Tuple.Create(name, varv))
+            Next
+
+            ' Clear and recreate flowDelays
+            flowDelays.Controls.Clear()
+            For idx = 0 To newDelays.Count - 1
+                Dim delayPanel As New Panel() With {
+                    .Height = 34,
+                    .Width = Math.Max(200, flowDelays.ClientSize.Width - 25),
+                    .Padding = New Padding(2)
+                }
+
+                Dim lblIdx As New Label() With {
+                    .AutoSize = False,
+                    .Width = 200,
+                    .Height = 28,
+                    .Left = 4,
+                    .Top = 4,
+                    .TextAlign = ContentAlignment.MiddleLeft,
+                    .Text = "#" & (idx + 1) & If(String.IsNullOrEmpty(newDelays(idx).Item1), "", " - " & newDelays(idx).Item1)
+                }
+
+                Dim txtVar As New TextBox() With {
+                    .Name = "txtVAR_" & (idx + 1),
+                    .Width = 60,
+                    .Left = lblIdx.Right + 6,
+                    .Top = 6,
+                    .Text = newDelays(idx).Item2
+                }
+
+                ' Keep VAR in sync with corresponding row Tag
+                AddHandler txtVar.TextChanged, Sub(s, e)
+                                                   Try
+                                                       Dim rowPanel = TryCast(flowRows.Controls(idx), Panel)
+                                                       If rowPanel IsNot Nothing Then
+                                                           Dim info = TryCast(rowPanel.Tag, Dictionary(Of String, String))
+                                                           If info IsNot Nothing Then info("VAR") = txtVar.Text
+                                                       End If
+                                                   Catch
+                                                   End Try
+                                                   ' Restrict input to digits only on keypress
+                                                   AddHandler txtVar.KeyPress, Sub(senderLocal, ke)
+                                                                                   If Not Char.IsControl(ke.KeyChar) AndAlso Not Char.IsDigit(ke.KeyChar) Then
+                                                                                       ke.Handled = True
+                                                                                   End If
+                                                                               End Sub
+                                               End Sub
+
+                delayPanel.Controls.Add(lblIdx)
+                delayPanel.Controls.Add(txtVar)
+                flowDelays.Controls.Add(delayPanel)
+            Next
+        Catch
+        End Try
+    End Sub
+
+    ' Helper to persist current form rows into Settings.ini (used by removal/renumber)
+    Private Sub SaveSettingsToIni()
+        Try
+            Dim ini As New Dictionary(Of String, String)()
+            ' Preserve other keys
+            If File.Exists(IniPath) Then
+                Dim existing = SettingsStore.ReadSettingsFromFile(IniPath)
+                For Each kvp In existing
+                    If Not kvp.Key.StartsWith("NEV_") AndAlso Not kvp.Key.StartsWith("MAPPA_") AndAlso Not kvp.Key.StartsWith("EXE_") AndAlso Not kvp.Key.StartsWith("VAR_") AndAlso Not kvp.Key.StartsWith("CFG_") Then
+                        ini(kvp.Key) = kvp.Value
+                    End If
+                Next
+            End If
+
+            Dim flowRows = TryCast(Me.Controls.Find("flowRows", True).FirstOrDefault(), FlowLayoutPanel)
+            If flowRows Is Nothing Then Return
+            Dim idx As Integer = 1
+            For Each ctrl As Control In flowRows.Controls
+                Dim p = TryCast(ctrl, Panel)
+                If p Is Nothing Then Continue For
+                Dim info = TryCast(p.Tag, Dictionary(Of String, String))
+                If info Is Nothing Then Continue For
+
+                Dim name = If(info.ContainsKey("NAME"), info("NAME"), String.Empty)
+                Dim path = If(info.ContainsKey("PATH"), info("PATH"), String.Empty)
+                Dim exe = If(info.ContainsKey("EXE"), info("EXE"), String.Empty)
+                Dim varv = If(info.ContainsKey("VAR"), info("VAR"), "2")
+                Dim cfg = If(info.ContainsKey("CFG"), info("CFG"), String.Empty)
+
+                If String.IsNullOrEmpty(name) AndAlso String.IsNullOrEmpty(exe) Then Continue For
+
+                ini($"NEV_{idx}") = name
+                ini($"MAPPA_{idx}") = path
+                ini($"EXE_{idx}") = exe
+                ini($"VAR_{idx}") = varv
+                If Not String.IsNullOrEmpty(cfg) Then
+                    ' normalize relative as before
+                    Try
+                        Dim baseDir = System.IO.Path.GetFullPath(AppDomain.CurrentDomain.BaseDirectory)
+                        If Not baseDir.EndsWith(System.IO.Path.DirectorySeparatorChar) Then baseDir &= System.IO.Path.DirectorySeparatorChar
+                        Dim fullCfg = System.IO.Path.GetFullPath(cfg)
+                        If fullCfg.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase) Then
+                            ini($"CFG_{idx}") = fullCfg.Substring(baseDir.Length)
+                        Else
+                            ini($"CFG_{idx}") = fullCfg
+                        End If
+                    Catch
+                        ini($"CFG_{idx}") = cfg
+                    End Try
+                End If
+
+                idx += 1
+            Next
+
+            SettingsStore.WriteSettingsToFile(IniPath, ini)
+            Form1.BeallitasokBetoltese()
+        Catch
+        End Try
+    End Sub
+
+    Private Sub ListView1_SelectedIndexChanged(sender As Object, e As EventArgs)
+
+    End Sub
+
+    Private Sub Label1_Click(sender As Object, e As EventArgs) Handles Label1.Click
+
     End Sub
 End Class
