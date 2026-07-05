@@ -1,8 +1,12 @@
 ﻿Imports System.Runtime.InteropServices
 Imports System.IO
 Imports System.Threading
+Imports System.Text
 
 Public Class Form1
+
+    ' Tracks if we've attached the VisibleChanged handler to the Form2 instance
+    Private form2VisibleHandlerAttached As Boolean = False
 
     ' --- Win32 API funkciók az ablakok átrakásához és stílusához ---
     <DllImport("user32.dll", SetLastError:=True)>
@@ -26,6 +30,67 @@ Public Class Form1
 
     ' Beállításokat tároló szótár (Dictionary)
     Public Beallitasok As New Dictionary(Of String, String)()
+    ' Track started processes by index
+    Private StartedProcesses As New Dictionary(Of Integer, Process)()
+
+    ' Return highest indexed NEV_ entry (number of app rows)
+    Private Function GetSettingsCount() As Integer
+        Dim maxIdx As Integer = 0
+        For Each k In Beallitasok.Keys
+            If k.StartsWith("NEV_") Then
+                Dim parts = k.Split("_"c)
+                Dim idx As Integer
+                If parts.Length > 1 AndAlso Integer.TryParse(parts(1), idx) Then
+                    If idx > maxIdx Then maxIdx = idx
+                End If
+            End If
+        Next
+        Return maxIdx
+    End Function
+
+    ' Ensure TabControl has exactly n TabPages; each tab gets a Panel named Panel{index}
+    Private Sub EnsureTabsMatchCount(n As Integer)
+        If TabControl1 Is Nothing Then Return
+        If n < 1 Then n = 1
+
+        ' Add missing tabs
+        While TabControl1.TabPages.Count < n
+            Dim newIndex = TabControl1.TabPages.Count + 1
+            Dim tp As New TabPage("Empty")
+            tp.BackColor = Color.Transparent
+            tp.Padding = New Padding(3)
+
+            Dim pnl As New Panel() With {
+                .Name = "Panel" & newIndex,
+                .Dock = DockStyle.Fill,
+                .BorderStyle = BorderStyle.None
+            }
+
+            ' Per-tab shutdown button (top-right)
+            Dim btnShutdownTab As New Button() With {
+                .Name = "BtnShutdown_" & newIndex,
+                .Text = "Shutdown",
+                .Width = 90,
+                .Height = 24,
+                .Anchor = AnchorStyles.Top Or AnchorStyles.Right
+            }
+            ' position near top-right; location will be adjusted by docking/anchoring
+            btnShutdownTab.Location = New Point(Math.Max(4, tp.ClientSize.Width - btnShutdownTab.Width - 8), 4)
+
+            Dim idx = newIndex
+            AddHandler btnShutdownTab.Click, Sub(s, e) ShutdownSingleApplication(idx)
+            tp.Controls.Add(btnShutdownTab)
+            tp.Controls.Add(pnl)
+            TabControl1.TabPages.Add(tp)
+        End While
+
+        ' Remove extra tabs
+        While TabControl1.TabPages.Count > n
+            TabControl1.TabPages.RemoveAt(TabControl1.TabPages.Count - 1)
+        End While
+    End Sub
+
+
 
     ' --- Amikor a Visual Basic program elindul (Most már csak a fájlt olvassa be!) ---
     Private Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
@@ -37,17 +102,23 @@ Public Class Form1
 
     ' Készítsünk egy külön nyilvános segédfunkciót a Form1-ben, amit a Splash meg tud hívni a fülek átnevezéséhez:
     Public Sub AblakFülNevekFrissitese()
-        If TabControl1 IsNot Nothing Then
-            For i As Integer = 1 To 8
-                Dim kulcsNev As String = "NEV_" & i
-                If Beallitasok.ContainsKey(kulcsNev) Then
-                    If TabControl1.TabPages.Count >= i Then
-                        TabControl1.TabPages(i - 1).Text = Beallitasok(kulcsNev)
-                    End If
-                End If
-            Next
-            TabControl1.Invalidate()
-        End If
+        If TabControl1 Is Nothing Then Return
+
+        Dim count = GetSettingsCount()
+        If count < 1 Then count = 1
+
+        EnsureTabsMatchCount(count)
+
+        For i As Integer = 1 To TabControl1.TabPages.Count
+            Dim kulcsNev As String = "NEV_" & i
+            If Beallitasok.ContainsKey(kulcsNev) Then
+                TabControl1.TabPages(i - 1).Text = Beallitasok(kulcsNev)
+            Else
+                TabControl1.TabPages(i - 1).Text = "NOT DEFINED"
+            End If
+        Next
+
+        TabControl1.Invalidate()
     End Sub
 
 
@@ -55,42 +126,23 @@ Public Class Form1
     Public Sub BeallitasokBetoltese()
         Try
             Beallitasok.Clear()
-            Dim txtUtvonal As String = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings.dat")
+            ' Ensure legacy Settings.dat is migrated to Settings.ini
+            SettingsStore.MigrateDatToIni(AppDomain.CurrentDomain.BaseDirectory)
 
-            If Not File.Exists(txtUtvonal) Then
-                MessageBox.Show("Can't find the settings file. Will be created after your first (File>Settings>Save Settings) save.")
+            Dim iniUtvonal As String = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings.ini")
+
+            If File.Exists(iniUtvonal) Then
+                Beallitasok = SettingsStore.ReadSettingsFromFile(iniUtvonal)
+            Else
+                MessageBox.Show("Can't find the settings file (Settings.ini). It will be created after your first save in Settings.")
                 Exit Sub
             End If
 
-            ' 1. Fájl soronkénti beolvasása és mentése a memóriába
-            For Each sor As String In File.ReadLines(txtUtvonal)
-                If sor.Contains("=") AndAlso Not sor.StartsWith("::") AndAlso Not sor.Trim() = "" Then
-                    Dim reszek = sor.Split("="c)
-                    Dim kulcs As String = reszek(0).Trim()
-                    Dim ertek As String = reszek(1).Trim()
-                    If Not Beallitasok.ContainsKey(kulcs) Then
-                        Beallitasok.Add(kulcs, ertek)
-                    End If
-                End If
-            Next
-
-            ' 2. ÚJ FUNKCIÓ: A fülek (TabPage-ek) neveinek dinamikus átírása
-            ' Ellenőrizzük, hogy a TabControl1 létezik-e az ablakon
-            If TabControl1 IsNot Nothing Then
-                For i As Integer = 1 To 8
-                    Dim kulcsNev As String = "NEV_" & i
-
-                    ' Csak akkor írjuk át, ha a musc.txt-ben létezik az adott sorszámú név
-                    If Beallitasok.ContainsKey(kulcsNev) Then
-                        Dim szoftverNev As String = Beallitasok(kulcsNev)
-
-                        ' A .NET-ben a fülek indexelése 0-tól indul, így az i-1. fület módosítjuk
-                        If TabControl1.TabPages.Count >= i Then
-                            TabControl1.TabPages(i - 1).Text = szoftverNev
-                        End If
-                    End If
-                Next
-            End If
+            ' Ensure tabs match settings count and update their names
+            Dim n As Integer = GetSettingsCount()
+            If n < 1 Then n = 1
+            EnsureTabsMatchCount(n)
+            AblakFülNevekFrissitese()
 
         Catch ex As Exception
             MessageBox.Show("Loading error or tabname error: " & ex.Message)
@@ -113,14 +165,16 @@ Public Class Form1
 
     ' --- A 8 alkalmazás egymás utáni indítása, beágyazása és DUPLIKÁCIÓ ELLENŐRZÉSE ---
     Private Sub SzoftvercsomagInditasa()
-        For i As Integer = 1 To 8
+        Dim total As Integer = GetSettingsCount()
+        If total < 1 Then total = 1
+
+        For i As Integer = 1 To total
             Try
                 ' Változók kinyerése a beállításokból a sorszám alapján
                 Dim kulcsMappa As String = "MAPPA_" & i
                 Dim kulcsExe As String = "EXE_" & i
                 Dim kulcsVar As String = "VAR_" & i
                 Dim kulcsNev As String = "NEV_" & i
-
                 If Beallitasok.ContainsKey(kulcsMappa) AndAlso Beallitasok.ContainsKey(kulcsExe) AndAlso Beallitasok.ContainsKey(kulcsNev) Then
                     Dim mappa As String = Beallitasok(kulcsMappa)
                     Dim exe As String = Beallitasok(kulcsExe)
@@ -149,6 +203,18 @@ Public Class Form1
 
                     Dim p As Process = Process.Start(psi)
 
+                    ' track started process so we can shut it down later
+                    Try
+                        SyncLock StartedProcesses
+                            If StartedProcesses.ContainsKey(i) Then
+                                StartedProcesses(i) = p
+                            Else
+                                StartedProcesses.Add(i, p)
+                            End If
+                        End SyncLock
+                    Catch
+                    End Try
+
                     ' Várunk, amíg az ablak létrejön a Windowsban
                     Dim ablakHandle As IntPtr = IntPtr.Zero
                     Dim szamlalo As Integer = 0
@@ -161,10 +227,23 @@ Public Class Form1
 
                     ' Ha megvan az ablak, beágyazzuk a megfelelő sorszámú Panelbe
                     If ablakHandle <> IntPtr.Zero Then
-                        Dim panelNev As String = "Panel" & i
-
                         Me.Invoke(Sub()
-                                      Dim celPanel As Panel = CType(Me.Controls.Find(panelNev, True).FirstOrDefault(), Panel)
+                                      ' Find the target panel inside the corresponding TabPage
+                                      Dim celPanel As Panel = Nothing
+                                      If TabControl1 IsNot Nothing AndAlso TabControl1.TabPages.Count >= i Then
+                                          Dim tp As TabPage = TabControl1.TabPages(i - 1)
+                                          Dim predicate As Func(Of Panel, Boolean) = Function(pl) pl.Name = ("Panel" & i)
+                                          celPanel = tp.Controls.OfType(Of Panel)().FirstOrDefault(predicate:=predicate)
+                                          If celPanel Is Nothing Then
+                                              ' fallback: first panel in tab
+                                              celPanel = tp.Controls.OfType(Of Panel)().FirstOrDefault()
+                                          End If
+                                      Else
+                                          ' fallback: search globally for PanelN
+                                          Dim panelNev As String = "Panel" & i
+                                          celPanel = CType(Me.Controls.Find(panelNev, True).FirstOrDefault(), Panel)
+                                      End If
+
                                       If celPanel IsNot Nothing Then
                                           SetWindowLong(ablakHandle, GWL_STYLE, WS_CHILD Or Visible)
                                           SetParent(ablakHandle, celPanel.Handle)
@@ -198,11 +277,138 @@ Public Class Form1
     End Sub
 
     Private Sub SettingsToolStripMenuItem_Click(sender As Object, e As EventArgs) Handles SettingsToolStripMenuItem.Click
-        Form2.Show()
+        Try
+            ' Disable the menu while the settings form is visible to prevent duplicates
+            SettingsToolStripMenuItem.Enabled = False
+
+            ' Attach a VisibleChanged handler once so we can re-enable the menu when the form is hidden
+            If Not form2VisibleHandlerAttached Then
+                Try
+                    AddHandler Form2.VisibleChanged, AddressOf Form2_VisibleChangedHandler
+                    form2VisibleHandlerAttached = True
+                Catch
+                End Try
+            End If
+
+            ' Show or restore the settings form
+            If Form2 IsNot Nothing AndAlso Form2.Visible Then
+                If Form2.WindowState = FormWindowState.Minimized Then
+                    Form2.WindowState = FormWindowState.Normal
+                End If
+                Form2.BringToFront()
+                Form2.Activate()
+            Else
+                Form2.Show()
+                Form2.BringToFront()
+                Form2.Activate()
+            End If
+        Catch ex As Exception
+            ' Fallback: try to show the default instance and ensure menu state
+            Try
+                Form2.Show()
+                SettingsToolStripMenuItem.Enabled = False
+            Catch
+            End Try
+        End Try
+    End Sub
+
+    Private Sub Form2_VisibleChangedHandler(sender As Object, e As EventArgs)
+        Try
+            ' Re-enable the Settings menu when the settings form is no longer visible
+            Dim frm = TryCast(sender, Form)
+            If frm Is Nothing Then
+                SettingsToolStripMenuItem.Enabled = True
+            Else
+                ' Enable the menu if the form is hidden OR minimized; disable while visible and normal/maximized
+                Dim isMinimized As Boolean = (frm.WindowState = FormWindowState.Minimized)
+                SettingsToolStripMenuItem.Enabled = (Not frm.Visible) Or isMinimized
+            End If
+        Catch
+            SettingsToolStripMenuItem.Enabled = True
+        End Try
     End Sub
 
     Private Sub ExitServerShutdownToolStripMenuItem_Click(sender As Object, e As EventArgs) Handles ExitServerShutdownToolStripMenuItem.Click
+        Dim resp = MessageBox.Show("Shutdown all started embedded applications and exit?", "Confirm", MessageBoxButtons.YesNo, MessageBoxIcon.Question)
+        If resp <> DialogResult.Yes Then Return
+
+        ' First try to shut down any started embedded applications
+        ShutdownStartedApplications()
+
+        ' Then exit the application
         Application.Exit()
+    End Sub
+
+    Private Sub BtnShutdownApps_Click(sender As Object, e As EventArgs) Handles BtnShutdownApps.Click
+        Dim resp = MessageBox.Show("Shutdown all started applications?", "Confirm", MessageBoxButtons.YesNo, MessageBoxIcon.Question)
+        If resp <> DialogResult.Yes Then Return
+
+        ShutdownStartedApplications()
+    End Sub
+
+    Private Sub ShutdownStartedApplications()
+        Dim procs As New List(Of Process)()
+        SyncLock StartedProcesses
+            For Each kvp In StartedProcesses
+                If kvp.Value IsNot Nothing AndAlso Not kvp.Value.HasExited Then
+                    procs.Add(kvp.Value)
+                End If
+            Next
+            StartedProcesses.Clear()
+        End SyncLock
+
+        For Each proc In procs
+            Try
+                If Not proc.HasExited Then
+                    ' try graceful close
+                    Try
+                        proc.CloseMainWindow()
+                        If Not proc.WaitForExit(3000) Then
+                            proc.Kill()
+                        End If
+                    Catch
+                        Try
+                            proc.Kill()
+                        Catch
+                        End Try
+                    End Try
+                End If
+            Catch
+            End Try
+        Next
+    End Sub
+
+    Private Sub ShutdownSingleApplication(index As Integer)
+        Try
+            Dim proc As Process = Nothing
+            SyncLock StartedProcesses
+                If StartedProcesses.ContainsKey(index) Then
+                    proc = StartedProcesses(index)
+                    StartedProcesses.Remove(index)
+                End If
+            End SyncLock
+
+            If proc Is Nothing Then
+                MessageBox.Show($"No tracked process for slot {index}.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                Return
+            End If
+
+            If proc IsNot Nothing AndAlso Not proc.HasExited Then
+                Try
+                    proc.CloseMainWindow()
+                    If Not proc.WaitForExit(3000) Then
+                        proc.Kill()
+                    End If
+                Catch
+                    Try
+                        proc.Kill()
+                    Catch
+                    End Try
+                End Try
+            End If
+        Catch ex As Exception
+            MessageBox.Show("Error shutting down application: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
     End Sub
     ' --- ÚJRAÉLESZTVE: A fülek sötétítése és dinamikus színezése állapot szerint ---
     Private Sub TabControl1_DrawItem(sender As Object, e As DrawItemEventArgs) Handles TabControl1.DrawItem
