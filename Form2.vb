@@ -59,14 +59,15 @@ Partial Public Class Form2
                 Dim exe = If(data.ContainsKey($"EXE_{i}"), data($"EXE_{i}"), String.Empty)
                 Dim cfg = If(data.ContainsKey($"CFG_{i}"), data($"CFG_{i}"), String.Empty)
                 Dim vr = If(data.ContainsKey($"VAR_{i}"), data($"VAR_{i}"), "1")
-                AddRow(name, mappa, exe, cfg, vr)
+                ' PRC per-row keys are no longer used; pass empty defaults
+                AddRow(name, mappa, exe, cfg, vr, String.Empty, "0")
                 found = True
                 i += 1
             End While
 
             If Not found Then
                 ' start with one empty row
-                AddRow(String.Empty, String.Empty, String.Empty, String.Empty, "1")
+                AddRow(String.Empty, String.Empty, String.Empty, String.Empty, "1", String.Empty, "0")
             End If
 
             ' Ensure CFG filenames are reflected in row labels even if indexes or data were inconsistent
@@ -128,8 +129,47 @@ Partial Public Class Form2
         Next
     End Sub
 
+    ' Ensure PrcTimer accepts only digits and normalizes value on changes/leave
+    Private Sub PrcTimer_KeyPress(sender As Object, e As KeyPressEventArgs)
+        ' Allow control keys (backspace, etc.) and digits only
+        If Not Char.IsControl(e.KeyChar) AndAlso Not Char.IsDigit(e.KeyChar) Then
+            e.Handled = True
+        End If
+    End Sub
+
+    Private Sub PrcTimer_TextChanged(sender As Object, e As EventArgs)
+        Try
+            Dim tb = CType(sender, TextBox)
+            Dim original = tb.Text
+            If String.IsNullOrEmpty(original) Then Return
+            ' Remove any non-digit characters (covers paste)
+            Dim cleaned = System.Text.RegularExpressions.Regex.Replace(original, "\D", "")
+            If cleaned <> original Then
+                Dim sel = tb.SelectionStart
+                tb.Text = cleaned
+                tb.SelectionStart = Math.Min(cleaned.Length, sel)
+            End If
+        Catch
+        End Try
+    End Sub
+
+    Private Sub PrcTimer_Leave(sender As Object, e As EventArgs)
+        Try
+            Dim tb = CType(sender, TextBox)
+            If String.IsNullOrEmpty(tb.Text) Then
+                tb.Text = "30"
+                Return
+            End If
+            Dim v = 0
+            If Not Integer.TryParse(tb.Text, v) OrElse v < 1 Then
+                tb.Text = "30"
+            End If
+        Catch
+        End Try
+    End Sub
+
     ' Add a new row to the FlowLayoutPanel
-    Private Sub AddRow(Optional initialName As String = "", Optional initialPath As String = "", Optional initialExe As String = "", Optional initialCfg As String = "", Optional initialVar As String = "2")
+    Private Sub AddRow(Optional initialName As String = "", Optional initialPath As String = "", Optional initialExe As String = "", Optional initialCfg As String = "", Optional initialVar As String = "1", Optional initialPrc As String = "", Optional initialPrcEn As String = "0")
         Dim container = TryCast(Me.Controls.Find("flowRows", True).FirstOrDefault(), FlowLayoutPanel)
         If container Is Nothing Then
             MessageBox.Show("flowRows panel is missing in the designer. Add a FlowLayoutPanel named 'flowRows'.")
@@ -190,12 +230,15 @@ Partial Public Class Form2
         }
 
         ' Store data in Tag
+
         Dim info As New Dictionary(Of String, String)()
         info("NAME") = initialName
         info("PATH") = initialPath
         info("EXE") = initialExe
         info("CFG") = initialCfg
         info("VAR") = initialVar
+        info("PRC") = initialPrc
+        info("PRCEN") = initialPrcEn
         p.Tag = info
 
         ' Set label to show the application name and optionally the config filename
@@ -500,7 +543,21 @@ Partial Public Class Form2
     End Sub
 
     Private Sub btnAddRow_Click(sender As Object, e As EventArgs) Handles btnAddRow.Click
-        AddRow()
+        ' Use global PrcTimer and PrcRestart defaults when adding a new row
+        Dim prcDefault As String = String.Empty
+        Dim prcEnDefault As String = "0"
+        Try
+            Dim txt = Me.Controls.Find("PrcTimer", True).FirstOrDefault()
+            If txt IsNot Nothing AndAlso TypeOf txt Is TextBox Then
+                prcDefault = CType(txt, TextBox).Text
+            End If
+            Dim chk = Me.Controls.Find("PrcRestart", True).FirstOrDefault()
+            If chk IsNot Nothing AndAlso TypeOf chk Is CheckBox Then
+                prcEnDefault = If(CType(chk, CheckBox).Checked, "1", "0")
+            End If
+        Catch
+        End Try
+        AddRow(initialPrc:=prcDefault, initialPrcEn:=prcEnDefault)
     End Sub
 
     Private Sub BtnMentes_Click(sender As Object, e As EventArgs) Handles BtnMentes.Click
@@ -561,10 +618,23 @@ Partial Public Class Form2
                         result($"CFG_{index}") = cfg
                     End Try
                 End If
+                ' per-row PRC keys removed; only PRCEN_GLOBAL persists below
                 index += 1
             Next
 
             ' Write to INI
+            ' Persist global PRCEN_GLOBAL (enabled) from PrcRestart control
+            Try
+                Dim prcEnGlobal As String = "0"
+                Dim chk = Me.Controls.Find("PrcRestart", True).FirstOrDefault()
+                If chk IsNot Nothing Then
+                    If TypeOf chk Is CheckBox Then prcEnGlobal = If(CType(chk, CheckBox).Checked, "1", "0")
+                    If TypeOf chk Is RadioButton Then prcEnGlobal = If(CType(chk, RadioButton).Checked, "1", "0")
+                End If
+                result("PRCEN_GLOBAL") = prcEnGlobal
+            Catch
+            End Try
+
             SettingsStore.WriteSettingsToFile(IniPath, result)
 
             ' Refresh Form1 and hide (do not dispose so user can re-open settings)
@@ -697,6 +767,18 @@ Partial Public Class Form2
                         ini($"CFG_{idx}") = cfg
                     End Try
                 End If
+
+                ' Also include global PRCEN_GLOBAL in the rebuilt INI (enabled flag only)
+                Try
+                    Dim prcEnGlobal As String = "0"
+                    Dim chk = Me.Controls.Find("PrcRestart", True).FirstOrDefault()
+                    If chk IsNot Nothing Then
+                        If TypeOf chk Is CheckBox Then prcEnGlobal = If(CType(chk, CheckBox).Checked, "1", "0")
+                        If TypeOf chk Is RadioButton Then prcEnGlobal = If(CType(chk, RadioButton).Checked, "1", "0")
+                    End If
+                    ini("PRCEN_GLOBAL") = prcEnGlobal
+                Catch
+                End Try
 
                 idx += 1
             Next

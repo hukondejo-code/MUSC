@@ -32,6 +32,46 @@ Public Class Form1
     Public Beallitasok As New Dictionary(Of String, String)()
     ' Track started processes by index
     Private StartedProcesses As New Dictionary(Of Integer, Process)()
+    ' Logging
+    Private ReadOnly logLock As New Object()
+    Private ReadOnly LogFilePath As String = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "monitor.log")
+    Private LoggingEnabled As Boolean = False
+    Private Sub Log(message As String)
+        Try
+            If Not LoggingEnabled Then Return
+            SyncLock logLock
+                Try
+                    EnsureLogRotation()
+                Catch
+                End Try
+                Dim entry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}{Environment.NewLine}"
+                File.AppendAllText(LogFilePath, entry, Encoding.UTF8)
+            End SyncLock
+        Catch
+        End Try
+    End Sub
+
+    Private Sub EnsureLogRotation()
+        Try
+            Dim maxBytes As Long = 5L * 1024L * 1024L ' 5 MB
+            If File.Exists(LogFilePath) Then
+                Dim fi As New FileInfo(LogFilePath)
+                If fi.Length >= maxBytes Then
+                    Dim rotated As String = Path.Combine(Path.GetDirectoryName(LogFilePath), "monitor.log.1")
+                    Try
+                        If File.Exists(rotated) Then File.Delete(rotated)
+                    Catch
+                    End Try
+                    File.Move(LogFilePath, rotated)
+                End If
+            End If
+        Catch
+        End Try
+    End Sub
+    ' Monitor cancellation and in-progress starts
+    Private monitorCts As Threading.CancellationTokenSource = Nothing
+    Private monitorLock As New Object()
+    Private startingSlots As New HashSet(Of Integer)()
 
     ' Return highest indexed NEV_ entry (number of app rows)
     Private Function GetSettingsCount() As Integer
@@ -66,20 +106,8 @@ Public Class Form1
                 .BorderStyle = BorderStyle.None
             }
 
-            ' Per-tab shutdown button (top-right)
-            Dim btnShutdownTab As New Button() With {
-                .Name = "BtnShutdown_" & newIndex,
-                .Text = "Shutdown",
-                .Width = 90,
-                .Height = 24,
-                .Anchor = AnchorStyles.Top Or AnchorStyles.Right
-            }
-            ' position near top-right; location will be adjusted by docking/anchoring
-            btnShutdownTab.Location = New Point(Math.Max(4, tp.ClientSize.Width - btnShutdownTab.Width - 8), 4)
-
-            Dim idx = newIndex
-            AddHandler btnShutdownTab.Click, Sub(s, e) ShutdownSingleApplication(idx)
-            tp.Controls.Add(btnShutdownTab)
+            ' Previously we added a per-tab Shutdown button here; removed because auto-restart
+            ' now manages lifecycle and the per-tab button caused clutter.
             tp.Controls.Add(pnl)
             TabControl1.TabPages.Add(tp)
         End While
@@ -98,6 +126,221 @@ Public Class Form1
         ' mert a tényleges beolvasást már a Splash ablak elvégezte előttünk!
         BeallitasokBetoltese()
         AblakFülNevekFrissitese()
+
+        ' Populate StartedProcesses from currently running system processes that match configured EXE names
+        Try
+            SyncStartedProcessesFromSystem()
+        Catch
+        End Try
+
+        ' Initialize logging enabled from settings if present
+        Try
+            If Beallitasok.ContainsKey("LOGGING_ENABLED") Then
+                Dim raw = Beallitasok("LOGGING_ENABLED")
+                If String.Equals(raw, "1") OrElse String.Equals(raw, "true", StringComparison.OrdinalIgnoreCase) Then
+                    LoggingEnabled = True
+                Else
+                    Boolean.TryParse(raw, LoggingEnabled)
+                End If
+            End If
+        Catch
+            LoggingEnabled = False
+        End Try
+
+        ' Add File -> Enable Logging menu item (toggle)
+        Try
+            Dim ms As MenuStrip = Nothing
+            Try
+                ms = Me.MenuStrip1
+            Catch
+            End Try
+            If ms Is Nothing Then
+                ms = Me.Controls.OfType(Of MenuStrip)().FirstOrDefault()
+            End If
+
+            If ms IsNot Nothing Then
+                Dim fileItem = ms.Items.OfType(Of ToolStripMenuItem)().FirstOrDefault(Function(t) t.Name = "FileToolStripMenuItem")
+                If fileItem Is Nothing Then
+                    fileItem = ms.Items.OfType(Of ToolStripMenuItem)().FirstOrDefault()
+                End If
+
+                If fileItem IsNot Nothing Then
+                    Dim restartEnabled As Boolean = False
+                    Try
+                        If Beallitasok.ContainsKey("PRCEN_GLOBAL") Then
+                            Dim raw = Beallitasok("PRCEN_GLOBAL")
+                            If String.Equals(raw, "1") OrElse String.Equals(raw, "true", StringComparison.OrdinalIgnoreCase) Then
+                                restartEnabled = True
+                            Else
+                                Boolean.TryParse(raw, restartEnabled)
+                            End If
+                        End If
+                    Catch
+                        restartEnabled = False
+                    End Try
+
+                    Dim existingRestartItem = fileItem.DropDownItems.OfType(Of ToolStripMenuItem)().FirstOrDefault(Function(t) t.Name = "EnableAutoRestartToolStripMenuItem")
+                    Dim existingLogItem = fileItem.DropDownItems.OfType(Of ToolStripMenuItem)().FirstOrDefault(Function(t) t.Name = "EnableLoggingToolStripMenuItem")
+                    If existingRestartItem Is Nothing Then
+                        Dim restartItem As New ToolStripMenuItem("Enable Auto-Restart") With {
+                            .CheckOnClick = True,
+                            .Checked = restartEnabled,
+                            .Name = "EnableAutoRestartToolStripMenuItem"
+                        }
+                        AddHandler restartItem.Click, Sub(s, ev)
+                                                           Try
+                                                               Dim itm = CType(s, ToolStripMenuItem)
+                                                               Dim enabled = itm.Checked
+                                                               Try
+                                                                   Dim iniPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings.ini")
+                                                                   Dim existing = If(File.Exists(iniPath), SettingsStore.ReadSettingsFromFile(iniPath), New Dictionary(Of String, String)())
+                                                                   existing("PRCEN_GLOBAL") = If(enabled, "1", "0")
+                                                                   SettingsStore.WriteSettingsToFile(iniPath, existing)
+                                                                   If Beallitasok Is Nothing Then Beallitasok = New Dictionary(Of String, String)()
+                                                                   Beallitasok("PRCEN_GLOBAL") = If(enabled, "1", "0")
+                                                               Catch
+                                                               End Try
+                                                               Log("Auto-Restart toggled: " & enabled.ToString())
+                                                           Catch
+                                                           End Try
+                                                       End Sub
+                        fileItem.DropDownItems.Insert(0, restartItem)
+                    Else
+                        existingRestartItem.Checked = restartEnabled
+                    End If
+
+                    If existingLogItem Is Nothing Then
+                        Dim logItem As New ToolStripMenuItem("Enable Logging") With {
+                            .CheckOnClick = True,
+                            .Checked = LoggingEnabled,
+                            .Name = "EnableLoggingToolStripMenuItem"
+                        }
+                        AddHandler logItem.Click, Sub(s, ev)
+                                                       Try
+                                                           Dim itm = CType(s, ToolStripMenuItem)
+                                                           LoggingEnabled = itm.Checked
+                                                           ' persist to INI immediately
+                                                           Try
+                                                               Dim iniPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings.ini")
+                                                               Dim existing = If(File.Exists(iniPath), SettingsStore.ReadSettingsFromFile(iniPath), New Dictionary(Of String, String)())
+                                                               existing("LOGGING_ENABLED") = If(LoggingEnabled, "1", "0")
+                                                               SettingsStore.WriteSettingsToFile(iniPath, existing)
+                                                               ' update in-memory map
+                                                               If Beallitasok Is Nothing Then Beallitasok = New Dictionary(Of String, String)()
+                                                               Beallitasok("LOGGING_ENABLED") = If(LoggingEnabled, "1", "0")
+                                                           Catch
+                                                           End Try
+                                                           Log("Logging toggled: " & LoggingEnabled.ToString())
+                                                       Catch
+                                                       End Try
+                                                   End Sub
+                        Dim restartIndex As Integer = fileItem.DropDownItems.IndexOfKey("EnableAutoRestartToolStripMenuItem")
+                        If restartIndex >= 0 Then
+                            fileItem.DropDownItems.Insert(restartIndex + 1, logItem)
+                        Else
+                            fileItem.DropDownItems.Insert(0, logItem)
+                        End If
+                    Else
+                        existingLogItem.Checked = LoggingEnabled
+                    End If
+                End If
+            End If
+        Catch
+        End Try
+
+        ' Start background process monitor if enabled by settings
+        Try
+            StartProcessMonitor()
+        Catch
+        End Try
+    End Sub
+
+    ' Scan running processes and populate StartedProcesses for indices matching configured EXE_ entries
+    Private Sub SyncStartedProcessesFromSystem()
+        Try
+            Dim maxIdx = GetSettingsCount()
+            Log($"SyncStartedProcessesFromSystem: scanning up to {maxIdx} slots")
+            For i As Integer = 1 To maxIdx
+                Try
+                    Dim keyExe = "EXE_" & i
+                    Dim keyMap = "MAPPA_" & i
+                    Dim keyNev = "NEV_" & i
+                    If Not Beallitasok.ContainsKey(keyExe) Then Continue For
+
+                    Dim exeName = Beallitasok(keyExe)
+                    If String.IsNullOrWhiteSpace(exeName) Then Continue For
+
+                    Dim procName = Path.GetFileNameWithoutExtension(exeName)
+                    If String.IsNullOrWhiteSpace(procName) Then Continue For
+
+                    Dim procs = Process.GetProcessesByName(procName)
+                    If procs Is Nothing OrElse procs.Length = 0 Then Continue For
+
+                    Dim p As Process = procs(0)
+
+                    SyncLock StartedProcesses
+                        If Not StartedProcesses.ContainsKey(i) Then
+                            StartedProcesses.Add(i, p)
+                        Else
+                            StartedProcesses(i) = p
+                        End If
+                    End SyncLock
+
+                    ' Try to embed window into the corresponding panel (similar to startup embedding)
+                    Me.Invoke(Sub()
+                                  Try
+                                      Dim celPanel As Panel = Nothing
+                                      If TabControl1 IsNot Nothing AndAlso TabControl1.TabPages.Count >= i Then
+                                          Dim tp As TabPage = TabControl1.TabPages(i - 1)
+                                          celPanel = tp.Controls.OfType(Of Panel)().FirstOrDefault(Function(pl) pl.Name = ("Panel" & i))
+                                          If celPanel Is Nothing Then celPanel = tp.Controls.OfType(Of Panel)().FirstOrDefault()
+                                      Else
+                                          Dim panelNev As String = "Panel" & i
+                                          celPanel = TryCast(Me.Controls.Find(panelNev, True).FirstOrDefault(), Panel)
+                                      End If
+
+                                      If celPanel IsNot Nothing Then
+                                          Dim handle As IntPtr = IntPtr.Zero
+                                          Dim attempts As Integer = 0
+                                          Log($"Slot {i}: polling for MainWindowHandle (up to 10s) for process Id={p.Id}")
+                                          While attempts < 100 AndAlso handle = IntPtr.Zero
+                                              Try
+                                                  p.Refresh()
+                                                  Try
+                                                      p.WaitForInputIdle(200)
+                                                  Catch
+                                                  End Try
+                                              Catch
+                                              End Try
+                                              handle = p.MainWindowHandle
+                                              If handle = IntPtr.Zero Then
+                                                  Threading.Thread.Sleep(100)
+                                                  attempts += 1
+                                              End If
+                                          End While
+                                          If handle <> IntPtr.Zero Then
+                                              Try
+                                                  SetWindowLong(handle, GWL_STYLE, WS_CHILD Or Visible)
+                                                  SetParent(handle, celPanel.Handle)
+                                                  MoveWindow(handle, 0, 0, celPanel.Width, celPanel.Height, True)
+                                                  Log($"Slot {i}: embedded process Id={p.Id} handle={handle} into Panel{ i }")
+                                              Catch exEmbed As Exception
+                                                  Log($"Slot {i}: embed failed for process Id={p.Id} - " & exEmbed.Message)
+                                              End Try
+                                          Else
+                                              Log($"Slot {i}: main window handle not available after polling for process Id={p.Id}")
+                                          End If
+                                      Else
+                                          Log($"Slot {i}: target panel not found for embedding")
+                                      End If
+                                  Catch
+                                  End Try
+                              End Sub)
+                Catch
+                End Try
+            Next
+        Catch
+        End Try
     End Sub
 
     ' Készítsünk egy külön nyilvános segédfunkciót a Form1-ben, amit a Splash meg tud hívni a fülek átnevezéséhez:
@@ -137,6 +380,39 @@ Public Class Form1
                 MessageBox.Show("Can't find the settings file (Settings.ini). It will be created after your first save in Settings.")
                 Exit Sub
             End If
+
+            ' Normalize VAR_ units: if VAR appears to be milliseconds (>=1000), convert to seconds
+            Try
+                Dim migrated As Boolean = False
+                Dim keys = New List(Of String)(Beallitasok.Keys)
+                For Each k In keys
+                    If k.StartsWith("VAR_") Then
+                        Dim raw = Beallitasok(k)
+                        Dim v As Integer = 0
+                        If Integer.TryParse(raw, v) Then
+                            If v >= 1000 Then
+                                ' assume milliseconds, convert to seconds (integer)
+                                Dim sec = Math.Max(1, v \ 1000)
+                                Beallitasok(k) = sec.ToString()
+                                migrated = True
+                                Log($"Migration: converted {k} from {v} (ms) to {sec} (s)")
+                            ElseIf v < 1 Then
+                                Beallitasok(k) = "1"
+                                migrated = True
+                                Log($"Migration: normalized {k} from {v} to 1 (s)")
+                            End If
+                        End If
+                    End If
+                Next
+                If migrated Then
+                    Try
+                        SettingsStore.WriteSettingsToFile(iniUtvonal, Beallitasok)
+                        Log("Migration: updated Settings.ini with normalized VAR_ values")
+                    Catch
+                    End Try
+                End If
+            Catch
+            End Try
 
             ' Ensure tabs match settings count and update their names
             Dim n As Integer = GetSettingsCount()
@@ -376,6 +652,218 @@ Public Class Form1
             Catch
             End Try
         Next
+    End Sub
+
+    ' --- Process monitor: periodically check and restart stopped apps when enabled ---
+    Private Sub StartProcessMonitor()
+        If monitorCts IsNot Nothing Then Return
+
+        monitorCts = New Threading.CancellationTokenSource()
+        Dim token = monitorCts.Token
+
+        Task.Run(Sub()
+                     Try
+                         While Not token.IsCancellationRequested
+                             Try
+                                 ' Check only PRCEN_GLOBAL (enabled flag). The monitor will rely on per-row VAR_ delays instead of a global timer.
+                                 Dim prcEnabled As Boolean = False
+                                 Try
+                                     If Beallitasok.ContainsKey("PRCEN_GLOBAL") Then
+                                         Dim raw = Beallitasok("PRCEN_GLOBAL")
+                                         If String.Equals(raw, "1") OrElse String.Equals(raw, "true", StringComparison.OrdinalIgnoreCase) Then
+                                             prcEnabled = True
+                                         Else
+                                             Boolean.TryParse(raw, prcEnabled)
+                                         End If
+                                     End If
+                                     If Not prcEnabled Then
+                                         ' global restart disabled, skip scanning restarts
+                                         Continue While
+                                     End If
+                                 Catch
+                                     prcEnabled = False
+                                 End Try
+                                 Dim maxIdx = GetSettingsCount()
+                                 For i As Integer = 1 To maxIdx
+                                     If token.IsCancellationRequested Then Exit For
+                                     Log("Monitor: evaluating slot " & i)
+                                     ' unified global restart cadence: prcSeconds already computed
+
+                                     ' Skip if another start is in progress
+                                     SyncLock monitorLock
+                                         If startingSlots.Contains(i) Then
+                                             Log("Monitor: slot " & i & " skip - start already in progress")
+                                             Continue For
+                                         End If
+                                     End SyncLock
+
+                                     Dim needRestart As Boolean = False
+                                     Dim existingProc As Process = Nothing
+                                     SyncLock StartedProcesses
+                                         If StartedProcesses.ContainsKey(i) Then
+                                             existingProc = StartedProcesses(i)
+                                             If existingProc Is Nothing Then
+                                                 Log("Monitor: slot " & i & " tracked process is null -> will attempt restart")
+                                                 needRestart = True
+                                             ElseIf existingProc.HasExited Then
+                                                 Log("Monitor: slot " & i & " tracked process Id=" & existingProc.Id & " has exited -> will attempt restart")
+                                                 needRestart = True
+                                             Else
+                                                 Log("Monitor: slot " & i & " tracked process Id=" & existingProc.Id & " is running -> skip restart")
+                                             End If
+                                         Else
+                                             ' Do not auto-start slots that were not previously started by this manager session
+                                             Log("Monitor: slot " & i & " not started in this session -> skip auto-start")
+                                             needRestart = False
+                                         End If
+                                     End SyncLock
+
+                                     If needRestart Then
+                                         ' mark starting
+                                         SyncLock monitorLock
+                                             startingSlots.Add(i)
+                                         End SyncLock
+
+                                         ' wait per-row VAR delay (in seconds) before restart
+                                         Dim varKey = "VAR_" & i
+                                         Dim varSeconds As Integer = 2
+                                         Try
+                                             If Beallitasok.ContainsKey(varKey) Then
+                                                 Integer.TryParse(Beallitasok(varKey), varSeconds)
+                                                 If varSeconds < 1 Then varSeconds = 2
+                                             End If
+                                         Catch
+                                             varSeconds = 2
+                                         End Try
+                                         varSeconds = varSeconds ' VAR stored as seconds already when multiplied in SzoftvercsomagInditasa
+                                         Log("Monitor: slot " & i & " will wait " & varSeconds & " second(s) before attempting restart")
+                                         Dim waited As Integer = 0
+                                         While waited < varSeconds AndAlso Not token.IsCancellationRequested
+                                             Threading.Thread.Sleep(1000)
+                                             waited += 1
+                                         End While
+
+                                         ' double-check under lock then start if still needed
+                                         Dim shouldStart As Boolean = False
+                                         SyncLock StartedProcesses
+                                             If Not StartedProcesses.ContainsKey(i) OrElse StartedProcesses(i) Is Nothing OrElse StartedProcesses(i).HasExited Then
+                                                 shouldStart = True
+                                             End If
+                                         End SyncLock
+                                         If shouldStart Then
+                                             Log("Monitor: slot " & i & " confirmed need to start")
+                                             Try
+                                                 ' read settings for this slot
+                                                 Dim keyMap = "MAPPA_" & i
+                                                 Dim keyExe = "EXE_" & i
+                                                 Dim keyNev = "NEV_" & i
+                                                 If Beallitasok.ContainsKey(keyMap) AndAlso Beallitasok.ContainsKey(keyExe) AndAlso Beallitasok.ContainsKey(keyNev) Then
+                                                     Dim mappa = Beallitasok(keyMap)
+                                                     Dim exe = Beallitasok(keyExe)
+                                                     Dim psi As New ProcessStartInfo()
+                                                     psi.FileName = Path.Combine(mappa, exe)
+                                                     psi.WorkingDirectory = mappa
+
+                                                     Dim p As Process = Nothing
+                                                     Try
+                                                         p = Process.Start(psi)
+                                                         Log("Monitor: slot " & i & " Process.Start returned Id=" & If(p IsNot Nothing, p.Id, -1))
+                                                     Catch exStart As Exception
+                                                         Log("Monitor: slot " & i & " Process.Start failed - " & exStart.Message)
+                                                     End Try
+
+                                                     If p IsNot Nothing Then
+                                                         SyncLock StartedProcesses
+                                                             If StartedProcesses.ContainsKey(i) Then StartedProcesses(i) = p Else StartedProcesses.Add(i, p)
+                                                         End SyncLock
+                                                         ' embed window on UI thread similar to SzoftvercsomagInditasa
+                                                         Log($"Monitor: started process Id={If(p IsNot Nothing, p.Id, -1)} for slot {i}")
+                                                         Me.Invoke(Sub()
+                                                                       Try
+                                                                           Dim celPanel As Panel = Nothing
+                                                                           If TabControl1 IsNot Nothing AndAlso TabControl1.TabPages.Count >= i Then
+                                                                               Dim tp As TabPage = TabControl1.TabPages(i - 1)
+                                                                               celPanel = tp.Controls.OfType(Of Panel)().FirstOrDefault(Function(pl) pl.Name = ("Panel" & i))
+                                                                               If celPanel Is Nothing Then celPanel = tp.Controls.OfType(Of Panel)().FirstOrDefault()
+                                                                           Else
+                                                                               Dim panelNev As String = "Panel" & i
+                                                                               celPanel = TryCast(Me.Controls.Find(panelNev, True).FirstOrDefault(), Panel)
+                                                                           End If
+
+                                                                           If celPanel IsNot Nothing Then
+                                                                               Dim handle As IntPtr = IntPtr.Zero
+                                                                               Dim attempts As Integer = 0
+                                                                               Log($"Monitor: polling for MainWindowHandle (up to 10s) for started process Id={p.Id} slot={i}")
+                                                                               While attempts < 100 AndAlso handle = IntPtr.Zero
+                                                                                   Try
+                                                                                       p.Refresh()
+                                                                                       Try
+                                                                                           p.WaitForInputIdle(200)
+                                                                                       Catch
+                                                                                       End Try
+                                                                                   Catch
+                                                                                   End Try
+                                                                                   handle = p.MainWindowHandle
+                                                                                   If handle = IntPtr.Zero Then
+                                                                                       Threading.Thread.Sleep(100)
+                                                                                       attempts += 1
+                                                                                   End If
+                                                                               End While
+                                                                               If handle <> IntPtr.Zero Then
+                                                                                   Try
+                                                                                       SetWindowLong(handle, GWL_STYLE, WS_CHILD Or Visible)
+                                                                                       SetParent(handle, celPanel.Handle)
+                                                                                       MoveWindow(handle, 0, 0, celPanel.Width, celPanel.Height, True)
+                                                                                       Log($"Monitor: embedded started process Id={p.Id} handle={handle} into Panel{ i }")
+                                                                                   Catch exEmbed As Exception
+                                                                                       Log($"Monitor: embed failed for started process Id={p.Id} slot={i} - " & exEmbed.Message)
+                                                                                   End Try
+                                                                               Else
+                                                                                   Log($"Monitor: main window handle not available after polling for started process Id={p.Id} slot={i}")
+                                                                               End If
+                                                                           Else
+                                                                               Log($"Monitor: target panel not found for slot {i} when embedding started process Id={p.Id}")
+                                                                           End If
+                                                                       Catch ex As Exception
+                                                                           Log($"Monitor: exception embedding started process Id={If(p IsNot Nothing, p.Id, -1)} slot={i} - " & ex.Message)
+                                                                       End Try
+                                                                   End Sub)
+                                                     End If
+                                                 End If
+                                             Catch
+                                             End Try
+                                         End If
+
+                                         SyncLock monitorLock
+                                             startingSlots.Remove(i)
+                                         End SyncLock
+                                     End If
+                                 Next
+                             Catch
+                             End Try
+
+                             ' Sleep between full scans (use small granularity to be responsive to cancellation)
+                             Dim sleepMs As Integer = 1000 * 60 * 5 ' default 5 minutes between checks
+                             Dim slept As Integer = 0
+                             While slept < sleepMs AndAlso Not token.IsCancellationRequested
+                                 Threading.Thread.Sleep(1000)
+                                 slept += 1000
+                             End While
+                         End While
+                     Catch
+                     End Try
+                 End Sub, token)
+    End Sub
+
+    Private Sub StopProcessMonitor()
+        Try
+            If monitorCts IsNot Nothing Then
+                monitorCts.Cancel()
+                monitorCts.Dispose()
+                monitorCts = Nothing
+            End If
+        Catch
+        End Try
     End Sub
 
     Private Sub ShutdownSingleApplication(index As Integer)

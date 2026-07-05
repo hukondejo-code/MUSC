@@ -26,6 +26,7 @@ Partial Class Form2
         btnAddRow = New Button()
         BtnMentes = New Button()
         Panel1 = New Panel()
+        Label8 = New Label()
         Label7 = New Label()
         Label6 = New Label()
         Label5 = New Label()
@@ -33,24 +34,24 @@ Partial Class Form2
         Label3 = New Label()
         Label2 = New Label()
         Label1 = New Label()
-        PictureBox1 = New PictureBox()
         flowRows = New FlowLayoutPanel()
+        PictureBox1 = New PictureBox()
         Panel1.SuspendLayout()
         CType(PictureBox1, ComponentModel.ISupportInitialize).BeginInit()
         SuspendLayout()
         ' 
         ' btnAddRow
         ' 
-        btnAddRow.Location = New Point(737, 402)
+        btnAddRow.Location = New Point(737, 32)
         btnAddRow.Name = "btnAddRow"
-        btnAddRow.Size = New Size(40, 28)
+        btnAddRow.Size = New Size(60, 28)
         btnAddRow.TabIndex = 1
         btnAddRow.Text = "+"
         btnAddRow.UseVisualStyleBackColor = True
         ' 
         ' BtnMentes
         ' 
-        BtnMentes.BackColor = SystemColors.HotTrack
+        BtnMentes.BackColor = Color.FromArgb(CByte(30), CByte(30), CByte(30))
         BtnMentes.ForeColor = SystemColors.Control
         BtnMentes.Location = New Point(737, 451)
         BtnMentes.Name = "BtnMentes"
@@ -64,6 +65,7 @@ Partial Class Form2
         Panel1.BackColor = SystemColors.ControlLight
         Panel1.BackgroundImageLayout = ImageLayout.None
         Panel1.BorderStyle = BorderStyle.FixedSingle
+        Panel1.Controls.Add(Label8)
         Panel1.Controls.Add(Label7)
         Panel1.Controls.Add(Label6)
         Panel1.Controls.Add(Label5)
@@ -71,14 +73,24 @@ Partial Class Form2
         Panel1.Controls.Add(Label3)
         Panel1.Controls.Add(Label2)
         Panel1.Controls.Add(Label1)
-        Panel1.Controls.Add(PictureBox1)
         Panel1.Controls.Add(btnAddRow)
         Panel1.Controls.Add(BtnMentes)
         Panel1.Controls.Add(flowRows)
+        Panel1.Controls.Add(PictureBox1)
         Panel1.Location = New Point(2, 1)
         Panel1.Name = "Panel1"
         Panel1.Size = New Size(866, 508)
         Panel1.TabIndex = 3
+        ' 
+        ' Label8
+        ' 
+        Label8.AutoSize = True
+        Label8.Font = New Font("Segoe UI", 6.75F)
+        Label8.Location = New Point(747, 7)
+        Label8.Name = "Label8"
+        Label8.Size = New Size(39, 12)
+        Label8.TabIndex = 10
+        Label8.Text = "Add App"
         ' 
         ' Label7
         ' 
@@ -150,16 +162,6 @@ Partial Class Form2
         Label1.TabIndex = 1
         Label1.Text = "Application Name"
         ' 
-        ' PictureBox1
-        ' 
-        PictureBox1.BackgroundImage = CType(resources.GetObject("PictureBox1.BackgroundImage"), Image)
-        PictureBox1.BackgroundImageLayout = ImageLayout.Zoom
-        PictureBox1.Location = New Point(737, 3)
-        PictureBox1.Name = "PictureBox1"
-        PictureBox1.Size = New Size(119, 393)
-        PictureBox1.TabIndex = 3
-        PictureBox1.TabStop = False
-        ' 
         ' flowRows
         ' 
         flowRows.BackColor = Color.WhiteSmoke
@@ -169,6 +171,16 @@ Partial Class Form2
         flowRows.Name = "flowRows"
         flowRows.Size = New Size(732, 471)
         flowRows.TabIndex = 0
+        ' 
+        ' PictureBox1
+        ' 
+        PictureBox1.BackgroundImage = CType(resources.GetObject("PictureBox1.BackgroundImage"), Image)
+        PictureBox1.BackgroundImageLayout = ImageLayout.Zoom
+        PictureBox1.Location = New Point(737, 3)
+        PictureBox1.Name = "PictureBox1"
+        PictureBox1.Size = New Size(119, 500)
+        PictureBox1.TabIndex = 3
+        PictureBox1.TabStop = False
         ' 
         ' Form2
         ' 
@@ -199,4 +211,5 @@ Partial Class Form2
     Friend WithEvents Label4 As Label
     Friend WithEvents Label3 As Label
     Friend WithEvents Label2 As Label
+    Friend WithEvents Label8 As Label
 End Class
