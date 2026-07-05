@@ -1,9 +1,9 @@
-﻿<Global.Microsoft.VisualBasic.CompilerServices.DesignerGenerated()> _
+<Global.Microsoft.VisualBasic.CompilerServices.DesignerGenerated()>
 Partial Class Form2
     Inherits System.Windows.Forms.Form
 
     'Form overrides dispose to clean up the component list.
-    <System.Diagnostics.DebuggerNonUserCode()> _
+    <System.Diagnostics.DebuggerNonUserCode()>
     Protected Overrides Sub Dispose(ByVal disposing As Boolean)
         Try
             If disposing AndAlso components IsNot Nothing Then
@@ -20,229 +20,183 @@ Partial Class Form2
     'NOTE: The following procedure is required by the Windows Form Designer
     'It can be modified using the Windows Form Designer.  
     'Do not modify it using the code editor.
-    <System.Diagnostics.DebuggerStepThrough()> _
+    <System.Diagnostics.DebuggerStepThrough()>
     Private Sub InitializeComponent()
         Dim resources As System.ComponentModel.ComponentResourceManager = New System.ComponentModel.ComponentResourceManager(GetType(Form2))
-        BtnTalloz1 = New Button()
-        BtnTalloz2 = New Button()
-        BtnTalloz3 = New Button()
-        BtnTalloz4 = New Button()
-        BtnTalloz5 = New Button()
-        BtnTalloz6 = New Button()
-        BtnTalloz7 = New Button()
-        BtnTalloz8 = New Button()
+        btnAddRow = New Button()
         BtnMentes = New Button()
-        LblStatusz1 = New Label()
-        LblStatusz2 = New Label()
-        LblStatusz3 = New Label()
-        LblStatusz4 = New Label()
-        LblStatusz5 = New Label()
-        LblStatusz6 = New Label()
-        LblStatusz7 = New Label()
-        LblStatusz8 = New Label()
+        Panel1 = New Panel()
+        Label7 = New Label()
+        Label6 = New Label()
+        Label5 = New Label()
+        Label4 = New Label()
+        Label3 = New Label()
+        Label2 = New Label()
+        Label1 = New Label()
+        PictureBox1 = New PictureBox()
+        flowRows = New FlowLayoutPanel()
+        Panel1.SuspendLayout()
+        CType(PictureBox1, ComponentModel.ISupportInitialize).BeginInit()
         SuspendLayout()
         ' 
-        ' BtnTalloz1
+        ' btnAddRow
         ' 
-        BtnTalloz1.Location = New Point(294, 29)
-        BtnTalloz1.Name = "BtnTalloz1"
-        BtnTalloz1.Size = New Size(75, 23)
-        BtnTalloz1.TabIndex = 0
-        BtnTalloz1.Text = "..."
-        BtnTalloz1.UseVisualStyleBackColor = True
-        ' 
-        ' BtnTalloz2
-        ' 
-        BtnTalloz2.Location = New Point(294, 58)
-        BtnTalloz2.Name = "BtnTalloz2"
-        BtnTalloz2.Size = New Size(75, 23)
-        BtnTalloz2.TabIndex = 1
-        BtnTalloz2.Text = "..."
-        BtnTalloz2.UseVisualStyleBackColor = True
-        ' 
-        ' BtnTalloz3
-        ' 
-        BtnTalloz3.Location = New Point(294, 87)
-        BtnTalloz3.Name = "BtnTalloz3"
-        BtnTalloz3.Size = New Size(75, 23)
-        BtnTalloz3.TabIndex = 2
-        BtnTalloz3.Text = "..."
-        BtnTalloz3.UseVisualStyleBackColor = True
-        ' 
-        ' BtnTalloz4
-        ' 
-        BtnTalloz4.Location = New Point(294, 116)
-        BtnTalloz4.Name = "BtnTalloz4"
-        BtnTalloz4.Size = New Size(75, 23)
-        BtnTalloz4.TabIndex = 3
-        BtnTalloz4.Text = "..."
-        BtnTalloz4.UseVisualStyleBackColor = True
-        ' 
-        ' BtnTalloz5
-        ' 
-        BtnTalloz5.Location = New Point(294, 145)
-        BtnTalloz5.Name = "BtnTalloz5"
-        BtnTalloz5.Size = New Size(75, 23)
-        BtnTalloz5.TabIndex = 4
-        BtnTalloz5.Text = "..."
-        BtnTalloz5.UseVisualStyleBackColor = True
-        ' 
-        ' BtnTalloz6
-        ' 
-        BtnTalloz6.Location = New Point(294, 174)
-        BtnTalloz6.Name = "BtnTalloz6"
-        BtnTalloz6.Size = New Size(75, 23)
-        BtnTalloz6.TabIndex = 5
-        BtnTalloz6.Text = "..."
-        BtnTalloz6.UseVisualStyleBackColor = True
-        ' 
-        ' BtnTalloz7
-        ' 
-        BtnTalloz7.Location = New Point(294, 203)
-        BtnTalloz7.Name = "BtnTalloz7"
-        BtnTalloz7.Size = New Size(75, 23)
-        BtnTalloz7.TabIndex = 6
-        BtnTalloz7.Text = "..."
-        BtnTalloz7.UseVisualStyleBackColor = True
-        ' 
-        ' BtnTalloz8
-        ' 
-        BtnTalloz8.Location = New Point(294, 232)
-        BtnTalloz8.Name = "BtnTalloz8"
-        BtnTalloz8.Size = New Size(75, 23)
-        BtnTalloz8.TabIndex = 7
-        BtnTalloz8.Text = "..."
-        BtnTalloz8.UseVisualStyleBackColor = True
+        btnAddRow.Location = New Point(737, 402)
+        btnAddRow.Name = "btnAddRow"
+        btnAddRow.Size = New Size(40, 28)
+        btnAddRow.TabIndex = 1
+        btnAddRow.Text = "+"
+        btnAddRow.UseVisualStyleBackColor = True
         ' 
         ' BtnMentes
         ' 
         BtnMentes.BackColor = SystemColors.HotTrack
         BtnMentes.ForeColor = SystemColors.Control
-        BtnMentes.Location = New Point(247, 285)
+        BtnMentes.Location = New Point(737, 451)
         BtnMentes.Name = "BtnMentes"
         BtnMentes.Size = New Size(122, 32)
-        BtnMentes.TabIndex = 8
+        BtnMentes.TabIndex = 2
         BtnMentes.Text = "SAVE SETTINGS"
         BtnMentes.UseVisualStyleBackColor = False
         ' 
-        ' LblStatusz1
+        ' Panel1
         ' 
-        LblStatusz1.AutoSize = True
-        LblStatusz1.Location = New Point(12, 33)
-        LblStatusz1.Name = "LblStatusz1"
-        LblStatusz1.Size = New Size(80, 15)
-        LblStatusz1.TabIndex = 9
-        LblStatusz1.Text = "NOT DEFINED"
+        Panel1.BackColor = SystemColors.ControlLight
+        Panel1.BackgroundImageLayout = ImageLayout.None
+        Panel1.BorderStyle = BorderStyle.FixedSingle
+        Panel1.Controls.Add(Label7)
+        Panel1.Controls.Add(Label6)
+        Panel1.Controls.Add(Label5)
+        Panel1.Controls.Add(Label4)
+        Panel1.Controls.Add(Label3)
+        Panel1.Controls.Add(Label2)
+        Panel1.Controls.Add(Label1)
+        Panel1.Controls.Add(PictureBox1)
+        Panel1.Controls.Add(btnAddRow)
+        Panel1.Controls.Add(BtnMentes)
+        Panel1.Controls.Add(flowRows)
+        Panel1.Location = New Point(2, 1)
+        Panel1.Name = "Panel1"
+        Panel1.Size = New Size(866, 508)
+        Panel1.TabIndex = 3
         ' 
-        ' LblStatusz2
+        ' Label7
         ' 
-        LblStatusz2.AutoSize = True
-        LblStatusz2.Location = New Point(12, 62)
-        LblStatusz2.Name = "LblStatusz2"
-        LblStatusz2.Size = New Size(80, 15)
-        LblStatusz2.TabIndex = 10
-        LblStatusz2.Text = "NOT DEFINED"
+        Label7.AutoSize = True
+        Label7.Font = New Font("Segoe UI", 6.75F)
+        Label7.Location = New Point(582, 7)
+        Label7.Name = "Label7"
+        Label7.Size = New Size(74, 12)
+        Label7.TabIndex = 7
+        Label7.Text = "Remove From List"
         ' 
-        ' LblStatusz3
+        ' Label6
         ' 
-        LblStatusz3.AutoSize = True
-        LblStatusz3.Location = New Point(12, 91)
-        LblStatusz3.Name = "LblStatusz3"
-        LblStatusz3.Size = New Size(80, 15)
-        LblStatusz3.TabIndex = 11
-        LblStatusz3.Text = "NOT DEFINED"
+        Label6.AutoSize = True
+        Label6.Font = New Font("Segoe UI", 6.75F)
+        Label6.Location = New Point(505, 7)
+        Label6.Name = "Label6"
+        Label6.Size = New Size(71, 12)
+        Label6.TabIndex = 6
+        Label6.Text = "Startup Delay (S)"
         ' 
-        ' LblStatusz4
+        ' Label5
         ' 
-        LblStatusz4.AutoSize = True
-        LblStatusz4.Location = New Point(12, 120)
-        LblStatusz4.Name = "LblStatusz4"
-        LblStatusz4.Size = New Size(80, 15)
-        LblStatusz4.TabIndex = 12
-        LblStatusz4.Text = "NOT DEFINED"
+        Label5.AutoSize = True
+        Label5.Font = New Font("Segoe UI", 6.75F)
+        Label5.Location = New Point(444, 7)
+        Label5.Name = "Label5"
+        Label5.Size = New Size(55, 12)
+        Label5.TabIndex = 5
+        Label5.Text = "Open Config"
         ' 
-        ' LblStatusz5
+        ' Label4
         ' 
-        LblStatusz5.AutoSize = True
-        LblStatusz5.Location = New Point(12, 149)
-        LblStatusz5.Name = "LblStatusz5"
-        LblStatusz5.Size = New Size(80, 15)
-        LblStatusz5.TabIndex = 13
-        LblStatusz5.Text = "NOT DEFINED"
+        Label4.AutoSize = True
+        Label4.Font = New Font("Segoe UI", 6.75F)
+        Label4.Location = New Point(376, 7)
+        Label4.Name = "Label4"
+        Label4.Size = New Size(62, 12)
+        Label4.TabIndex = 4
+        Label4.Text = "Browse Config"
         ' 
-        ' LblStatusz6
+        ' Label3
         ' 
-        LblStatusz6.AutoSize = True
-        LblStatusz6.Location = New Point(12, 178)
-        LblStatusz6.Name = "LblStatusz6"
-        LblStatusz6.Size = New Size(80, 15)
-        LblStatusz6.TabIndex = 14
-        LblStatusz6.Text = "NOT DEFINED"
+        Label3.AutoSize = True
+        Label3.Font = New Font("Segoe UI", 6.75F)
+        Label3.Location = New Point(290, 7)
+        Label3.Name = "Label3"
+        Label3.Size = New Size(80, 12)
+        Label3.TabIndex = 3
+        Label3.Text = "Browse Application"
         ' 
-        ' LblStatusz7
+        ' Label2
         ' 
-        LblStatusz7.AutoSize = True
-        LblStatusz7.Location = New Point(12, 207)
-        LblStatusz7.Name = "LblStatusz7"
-        LblStatusz7.Size = New Size(80, 15)
-        LblStatusz7.TabIndex = 15
-        LblStatusz7.Text = "NOT DEFINED"
+        Label2.AutoSize = True
+        Label2.Font = New Font("Segoe UI", 6.75F)
+        Label2.Location = New Point(155, 7)
+        Label2.Name = "Label2"
+        Label2.Size = New Size(61, 12)
+        Label2.TabIndex = 2
+        Label2.Text = "Cfg File Name"
         ' 
-        ' LblStatusz8
+        ' Label1
         ' 
-        LblStatusz8.AutoSize = True
-        LblStatusz8.Location = New Point(12, 236)
-        LblStatusz8.Name = "LblStatusz8"
-        LblStatusz8.Size = New Size(80, 15)
-        LblStatusz8.TabIndex = 16
-        LblStatusz8.Text = "NOT DEFINED"
+        Label1.AutoSize = True
+        Label1.Font = New Font("Segoe UI", 6.75F)
+        Label1.Location = New Point(9, 7)
+        Label1.Name = "Label1"
+        Label1.Size = New Size(76, 12)
+        Label1.TabIndex = 1
+        Label1.Text = "Application Name"
+        ' 
+        ' PictureBox1
+        ' 
+        PictureBox1.BackgroundImage = CType(resources.GetObject("PictureBox1.BackgroundImage"), Image)
+        PictureBox1.BackgroundImageLayout = ImageLayout.Zoom
+        PictureBox1.Location = New Point(737, 3)
+        PictureBox1.Name = "PictureBox1"
+        PictureBox1.Size = New Size(119, 393)
+        PictureBox1.TabIndex = 3
+        PictureBox1.TabStop = False
+        ' 
+        ' flowRows
+        ' 
+        flowRows.BackColor = Color.WhiteSmoke
+        flowRows.BorderStyle = BorderStyle.FixedSingle
+        flowRows.FlowDirection = FlowDirection.TopDown
+        flowRows.Location = New Point(-1, 32)
+        flowRows.Name = "flowRows"
+        flowRows.Size = New Size(732, 471)
+        flowRows.TabIndex = 0
         ' 
         ' Form2
         ' 
         AutoScaleMode = AutoScaleMode.None
-        ClientSize = New Size(391, 348)
-        Controls.Add(LblStatusz8)
-        Controls.Add(LblStatusz7)
-        Controls.Add(LblStatusz6)
-        Controls.Add(LblStatusz5)
-        Controls.Add(LblStatusz4)
-        Controls.Add(LblStatusz3)
-        Controls.Add(LblStatusz2)
-        Controls.Add(LblStatusz1)
-        Controls.Add(BtnMentes)
-        Controls.Add(BtnTalloz8)
-        Controls.Add(BtnTalloz7)
-        Controls.Add(BtnTalloz6)
-        Controls.Add(BtnTalloz5)
-        Controls.Add(BtnTalloz4)
-        Controls.Add(BtnTalloz3)
-        Controls.Add(BtnTalloz2)
-        Controls.Add(BtnTalloz1)
-        FormBorderStyle = FormBorderStyle.FixedToolWindow
+        ClientSize = New Size(871, 510)
+        Controls.Add(Panel1)
+        FormBorderStyle = FormBorderStyle.None
         Icon = CType(resources.GetObject("$this.Icon"), Icon)
         Name = "Form2"
         ShowInTaskbar = False
         StartPosition = FormStartPosition.CenterScreen
         Text = "SETTINGS"
+        Panel1.ResumeLayout(False)
+        Panel1.PerformLayout()
+        CType(PictureBox1, ComponentModel.ISupportInitialize).EndInit()
         ResumeLayout(False)
-        PerformLayout()
-    End Sub
 
-    Friend WithEvents BtnTalloz1 As Button
-    Friend WithEvents BtnTalloz2 As Button
-    Friend WithEvents BtnTalloz3 As Button
-    Friend WithEvents BtnTalloz4 As Button
-    Friend WithEvents BtnTalloz5 As Button
-    Friend WithEvents BtnTalloz6 As Button
-    Friend WithEvents BtnTalloz7 As Button
-    Friend WithEvents BtnTalloz8 As Button
+    End Sub
+    Friend WithEvents btnAddRow As Button
     Friend WithEvents BtnMentes As Button
-    Friend WithEvents LblStatusz1 As Label
-    Friend WithEvents LblStatusz2 As Label
-    Friend WithEvents LblStatusz3 As Label
-    Friend WithEvents LblStatusz4 As Label
-    Friend WithEvents LblStatusz5 As Label
-    Friend WithEvents LblStatusz6 As Label
-    Friend WithEvents LblStatusz7 As Label
-    Friend WithEvents LblStatusz8 As Label
+    Friend WithEvents Panel1 As Panel
+    Friend WithEvents flowRows As FlowLayoutPanel
+    Friend WithEvents PictureBox1 As PictureBox
+    Friend WithEvents Label1 As Label
+    Friend WithEvents Label7 As Label
+    Friend WithEvents Label6 As Label
+    Friend WithEvents Label5 As Label
+    Friend WithEvents Label4 As Label
+    Friend WithEvents Label3 As Label
+    Friend WithEvents Label2 As Label
 End Class
