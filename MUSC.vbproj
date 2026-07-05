@@ -8,10 +8,19 @@
     <MyType>WindowsForms</MyType>
     <ApplicationIcon>musc.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>1.1.0</Version>
+    <AssemblyVersion>1.1.0.0</AssemblyVersion>
+    <FileVersion>1.1.0.0</FileVersion>
+    <DebugType>none</DebugType>
   </PropertyGroup>
 
   <ItemGroup>
     <AdditionalFiles Remove="app.manifest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="Resources\splash1.png" />
+    <None Remove="Resources\splash3.png" />
   </ItemGroup>
 
   <ItemGroup>

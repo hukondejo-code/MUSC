@@ -63,10 +63,22 @@ Namespace My.Resources
         '''<summary>
         '''  Looks up a localized resource of type System.Drawing.Bitmap.
         '''</summary>
+        ' splash images removed from .resx; keep properties but return Nothing to avoid runtime errors when not present
+        Friend ReadOnly Property splash1() As System.Drawing.Bitmap
+            Get
+                Return Nothing
+            End Get
+        End Property
+
         Friend ReadOnly Property splash2() As System.Drawing.Bitmap
             Get
-                Dim obj As Object = ResourceManager.GetObject("splash2", resourceCulture)
-                Return CType(obj,System.Drawing.Bitmap)
+                Return Nothing
+            End Get
+        End Property
+
+        Friend ReadOnly Property splash3() As System.Drawing.Bitmap
+            Get
+                Return Nothing
             End Get
         End Property
     End Module
