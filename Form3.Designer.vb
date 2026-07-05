@@ -1,4 +1,4 @@
-﻿<Global.Microsoft.VisualBasic.CompilerServices.DesignerGenerated()> _
+<Global.Microsoft.VisualBasic.CompilerServices.DesignerGenerated()> _
 Partial Class Form3
     Inherits System.Windows.Forms.Form
 
@@ -34,7 +34,7 @@ Partial Class Form3
         Label1.BackColor = Color.FromArgb(CByte(30), CByte(30), CByte(30))
         Label1.Font = New Font("Segoe UI Black", 36F, FontStyle.Bold, GraphicsUnit.Point, CByte(238))
         Label1.ForeColor = Color.DeepPink
-        Label1.Image = My.Resources.Resources.splash2
+        Label1.Image = CType(resources.GetObject("Label1.Image"), Image)
         Label1.Location = New Point(99, 174)
         Label1.Name = "Label1"
         Label1.Size = New Size(549, 65)
@@ -67,7 +67,7 @@ Partial Class Form3
         ' 
         AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
-        BackgroundImage = My.Resources.Resources.splash2
+        BackgroundImage = CType(resources.GetObject("$this.BackgroundImage"), Image)
         BackgroundImageLayout = ImageLayout.None
         ClientSize = New Size(814, 477)
         Controls.Add(LblBetoltes)
