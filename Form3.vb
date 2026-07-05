@@ -3,7 +3,7 @@ Imports System.Threading
 
 Public Class Form3
 
-    Private DatUtvonal As String = Path.Combine(AppContext.BaseDirectory, "Settings.dat")
+    Private DatUtvonal As String = Path.Combine(AppContext.BaseDirectory, "Settings.ini")
 
     Private Sub Form3_Shown(sender As Object, e As EventArgs) Handles MyBase.Shown
         ' Háttérszál indítása a grafika fagyásának elkerülésére
@@ -33,7 +33,9 @@ Public Class Form3
                 End Sub
 
             ' 1. FÁZIS: Adatfájl keresése és beolvasása
-            Frissit("Searching for settings file (Settings.dat) ...", 10)
+            Frissit("Searching for settings file (Settings.ini) ...", 10)
+            ' Ensure legacy Settings.dat is migrated to Settings.ini early (splash)
+            SettingsStore.MigrateDatToIni(AppContext.BaseDirectory)
             Thread.Sleep(300)
 
             ' Létrehozzuk a Form1 példányát a háttérben
@@ -76,6 +78,13 @@ Public Class Form3
                       End Sub)
 
         Catch ex As Exception
+            ' Log full exception to temp for diagnosis
+            Try
+                Dim tmp = Path.Combine(Path.GetTempPath(), "Form3_error.txt")
+                File.WriteAllText(tmp, ex.ToString())
+            Catch
+            End Try
+
             Me.Invoke(Sub()
                           MessageBox.Show("Error during loading splashscreen : " & ex.Message)
                           Me.Close()
