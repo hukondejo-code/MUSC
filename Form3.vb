@@ -5,6 +5,20 @@ Public Class Form3
 
     Private DatUtvonal As String = Path.Combine(AppContext.BaseDirectory, "Settings.ini")
 
+    Private Function GetConfiguredRowCount(settings As Dictionary(Of String, String)) As Integer
+        Dim maxIdx As Integer = 0
+        For Each key In settings.Keys
+            If key.StartsWith("NEV_") Then
+                Dim parts = key.Split("_"c)
+                Dim idx As Integer
+                If parts.Length > 1 AndAlso Integer.TryParse(parts(1), idx) Then
+                    If idx > maxIdx Then maxIdx = idx
+                End If
+            End If
+        Next
+        Return maxIdx
+    End Function
+
     Private Sub Form3_Shown(sender As Object, e As EventArgs) Handles MyBase.Shown
         ' Háttérszál indítása a grafika fagyásának elkerülésére
         Dim bgSzal As New Thread(AddressOf DinamikusBetoltes)
@@ -38,6 +52,21 @@ Public Class Form3
             SettingsStore.MigrateDatToIni(AppContext.BaseDirectory)
             Thread.Sleep(300)
 
+            If Not File.Exists(DatUtvonal) Then
+                Me.Invoke(Sub()
+                              Try
+                                  Form1.BeallitasokBetoltese()
+                              Catch
+                              End Try
+                              My.Forms.Form1.Show()
+                              Me.Hide()
+                          End Sub)
+                Return
+            End If
+
+            Dim settings = SettingsStore.ReadSettingsFromFile(DatUtvonal)
+            Dim rowCount = GetConfiguredRowCount(settings)
+
             ' Létrehozzuk a Form1 példányát a háttérben
             Dim f1 As Form1 = CType(Application.OpenForms("Form1"), Form1)
             If f1 Is Nothing Then
@@ -48,17 +77,17 @@ Public Class Form3
             Frissit("Reading configurations ...", 20)
             Thread.Sleep(200)
 
-            ' 2. FÁZIS: A 8 alkalmazás szimulált beolvasása és kiírása
-            For i As Integer = 1 To 8
-                Dim szoftverNev As String = " ..."
-
-                ' Átnyúlunk a Form1 statikus/alapértelmezett példányába (My.Forms segítségével .NET 10 alatt)
-                If Form1.Beallitasok.ContainsKey("NEV_" & i) Then
-                    szoftverNev = Form1.Beallitasok("NEV_" & i) & ".exe"
+            ' 2. FÁZIS: A konfigurált alkalmazások szimulált beolvasása és kiírása
+            If rowCount < 1 Then rowCount = 1
+            For i As Integer = 1 To rowCount
+                Dim szoftverNev As String = "..."
+                If settings.ContainsKey("NEV_" & i) AndAlso Not String.IsNullOrWhiteSpace(settings("NEV_" & i)) Then
+                    szoftverNev = settings("NEV_" & i)
                 End If
 
-                Dim aktualisSzazalek As Integer = 20 + (i * 8)
-                Frissit($"Checking executables [{i}/8]: {szoftverNev}", aktualisSzazalek)
+                Dim aktualisSzazalek As Integer = 20 + CInt(Math.Round((i / CDbl(rowCount)) * 70))
+                If aktualisSzazalek >= 95 Then aktualisSzazalek = 94
+                Frissit($"Checking application [{i}/{rowCount}]: {szoftverNev}", aktualisSzazalek)
                 Thread.Sleep(150)
             Next
 
