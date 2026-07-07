@@ -88,6 +88,88 @@ Public Class Form1
         Return maxIdx
     End Function
 
+    Private Function GetConfiguredExecutablePath(index As Integer) As String
+        Try
+            Dim keyMap = "MAPPA_" & index
+            Dim keyExe = "EXE_" & index
+            If Not Beallitasok.ContainsKey(keyMap) OrElse Not Beallitasok.ContainsKey(keyExe) Then Return String.Empty
+
+            Dim folder = Beallitasok(keyMap)
+            Dim exeName = Beallitasok(keyExe)
+            If String.IsNullOrWhiteSpace(folder) OrElse String.IsNullOrWhiteSpace(exeName) Then Return String.Empty
+
+            Return Path.GetFullPath(Path.Combine(folder, exeName))
+        Catch
+            Return String.Empty
+        End Try
+    End Function
+
+    Private Function TryGetProcessExecutablePath(proc As Process) As String
+        Try
+            If proc Is Nothing Then Return String.Empty
+            Return proc.MainModule.FileName
+        Catch
+            Return String.Empty
+        End Try
+    End Function
+
+    Private Function GetTrackedProcess(index As Integer) As Process
+        SyncLock StartedProcesses
+            If StartedProcesses.ContainsKey(index) Then
+                Return StartedProcesses(index)
+            End If
+        End SyncLock
+
+        Return Nothing
+    End Function
+
+    Private Function IsTrackedProcessRunning(index As Integer) As Boolean
+        Try
+            Dim proc = GetTrackedProcess(index)
+            Return proc IsNot Nothing AndAlso Not proc.HasExited
+        Catch
+            Return False
+        End Try
+    End Function
+
+    Private Sub SetTrackedProcess(index As Integer, proc As Process)
+        SyncLock StartedProcesses
+            If StartedProcesses.ContainsKey(index) Then
+                StartedProcesses(index) = proc
+            Else
+                StartedProcesses.Add(index, proc)
+            End If
+        End SyncLock
+    End Sub
+
+    Private Function FindRunningProcessForSlot(index As Integer, Optional usedProcessIds As HashSet(Of Integer) = Nothing) As Process
+        Try
+            Dim configuredPath = GetConfiguredExecutablePath(index)
+            If String.IsNullOrWhiteSpace(configuredPath) Then Return Nothing
+
+            Dim procName = Path.GetFileNameWithoutExtension(configuredPath)
+            If String.IsNullOrWhiteSpace(procName) Then Return Nothing
+
+            For Each proc In Process.GetProcessesByName(procName)
+                Try
+                    If proc Is Nothing OrElse proc.HasExited Then Continue For
+                    If usedProcessIds IsNot Nothing AndAlso usedProcessIds.Contains(proc.Id) Then Continue For
+
+                    Dim procPath = TryGetProcessExecutablePath(proc)
+                    If Not String.IsNullOrWhiteSpace(procPath) Then
+                        If String.Equals(Path.GetFullPath(procPath), configuredPath, StringComparison.OrdinalIgnoreCase) Then
+                            Return proc
+                        End If
+                    End If
+                Catch
+                End Try
+            Next
+        Catch
+        End Try
+
+        Return Nothing
+    End Function
+
     ' Ensure TabControl has exactly n TabPages; each tab gets a Panel named Panel{index}
     Private Sub EnsureTabsMatchCount(n As Integer)
         If TabControl1 Is Nothing Then Return
@@ -260,31 +342,27 @@ Public Class Form1
         Try
             Dim maxIdx = GetSettingsCount()
             Log($"SyncStartedProcessesFromSystem: scanning up to {maxIdx} slots")
+            Dim usedProcessIds As New HashSet(Of Integer)()
+
+            SyncLock StartedProcesses
+                For Each kvp In StartedProcesses
+                    Try
+                        If kvp.Value IsNot Nothing AndAlso Not kvp.Value.HasExited Then
+                            usedProcessIds.Add(kvp.Value.Id)
+                        End If
+                    Catch
+                    End Try
+                Next
+            End SyncLock
+
             For i As Integer = 1 To maxIdx
                 Try
-                    Dim keyExe = "EXE_" & i
-                    Dim keyMap = "MAPPA_" & i
-                    Dim keyNev = "NEV_" & i
-                    If Not Beallitasok.ContainsKey(keyExe) Then Continue For
+                    Dim p = FindRunningProcessForSlot(i, usedProcessIds)
+                    If p Is Nothing Then Continue For
 
-                    Dim exeName = Beallitasok(keyExe)
-                    If String.IsNullOrWhiteSpace(exeName) Then Continue For
-
-                    Dim procName = Path.GetFileNameWithoutExtension(exeName)
-                    If String.IsNullOrWhiteSpace(procName) Then Continue For
-
-                    Dim procs = Process.GetProcessesByName(procName)
-                    If procs Is Nothing OrElse procs.Length = 0 Then Continue For
-
-                    Dim p As Process = procs(0)
-
-                    SyncLock StartedProcesses
-                        If Not StartedProcesses.ContainsKey(i) Then
-                            StartedProcesses.Add(i, p)
-                        Else
-                            StartedProcesses(i) = p
-                        End If
-                    End SyncLock
+                    usedProcessIds.Add(p.Id)
+                    SetTrackedProcess(i, p)
+                    Log($"SyncStartedProcessesFromSystem: slot {i} matched running process Id={p.Id}")
 
                     ' Try to embed window into the corresponding panel (similar to startup embedding)
                     Me.Invoke(Sub()
@@ -454,23 +532,17 @@ Public Class Form1
                 If Beallitasok.ContainsKey(kulcsMappa) AndAlso Beallitasok.ContainsKey(kulcsExe) AndAlso Beallitasok.ContainsKey(kulcsNev) Then
                     Dim mappa As String = Beallitasok(kulcsMappa)
                     Dim exe As String = Beallitasok(kulcsExe)
-                    Dim psNev As String = Beallitasok(kulcsNev)
                     Dim szoftverNev As String = Beallitasok(kulcsNev)
                     Dim varakozas As Integer = Integer.Parse(Beallitasok(kulcsVar)) * 1000
 
-                    ' -----------------------------------------------------------------
-                    ' BUG JAVÍTÁS: Ellenőrizzük, hogy fut-e már ez a folyamat a rendszerben
-                    ' -----------------------------------------------------------------
-                    Dim futoFolyamatok As Process() = Process.GetProcessesByName(psNev)
-
-                    If futoFolyamatok.Length > 0 Then
-                        ' Ha a lista nem üres, a program már fut. Kiíratjuk és átugorjuk.
+                    Dim trackedProc = GetTrackedProcess(i)
+                    If trackedProc IsNot Nothing AndAlso Not trackedProc.HasExited Then
                         Me.Invoke(Sub()
-                                      MessageBox.Show($"The '{szoftverNev}' executable is running. Skipping.", "Alert!", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                                      MessageBox.Show($"The '{szoftverNev}' slot is already running with PID {trackedProc.Id}. Skipping duplicate start.", "Alert!", MessageBoxButtons.OK, MessageBoxIcon.Warning)
                                   End Sub)
-                        Continue For ' Azonnal ugrik a ciklus a következő (i+1) alkalmazásra
+                        Log($"Startup: slot {i} already tracked with PID {trackedProc.Id}; skipping duplicate start")
+                        Continue For
                     End If
-                    ' -----------------------------------------------------------------
 
                     ' Ha nem fut, akkor elindítjuk a megszokott módon
                     Dim psi As New ProcessStartInfo()
@@ -481,13 +553,8 @@ Public Class Form1
 
                     ' track started process so we can shut it down later
                     Try
-                        SyncLock StartedProcesses
-                            If StartedProcesses.ContainsKey(i) Then
-                                StartedProcesses(i) = p
-                            Else
-                                StartedProcesses.Add(i, p)
-                            End If
-                        End SyncLock
+                        SetTrackedProcess(i, p)
+                        Log($"Startup: slot {i} started PID {If(p IsNot Nothing, p.Id, -1)} for {szoftverNev}")
                     Catch
                     End Try
 
@@ -773,9 +840,7 @@ Public Class Form1
                                                      End Try
 
                                                      If p IsNot Nothing Then
-                                                         SyncLock StartedProcesses
-                                                             If StartedProcesses.ContainsKey(i) Then StartedProcesses(i) = p Else StartedProcesses.Add(i, p)
-                                                         End SyncLock
+                                                         SetTrackedProcess(i, p)
                                                          ' embed window on UI thread similar to SzoftvercsomagInditasa
                                                          Log($"Monitor: started process Id={If(p IsNot Nothing, p.Id, -1)} for slot {i}")
                                                          Me.Invoke(Sub()
@@ -923,10 +988,7 @@ Public Class Form1
                 ' Ha a fájlnév üres -> PIROS
                 aktualisHatterSzin = Color.FromArgb(160, 40, 40)
             Else
-                ' Megnézzük, hogy fut-e a folyamat a háttérben
-                Dim futoFolyamatok As Process() = Process.GetProcessesByName(szoftverNev)
-
-                If futoFolyamatok.Length > 0 Then
+                If IsTrackedProcessRunning(sorszam) Then
                     ' Ha fut -> ZÖLD (Működő alkalmazás)
                     aktualisHatterSzin = Color.FromArgb(40, 130, 40) ' Elegáns sötétzöld
                 Else
