@@ -641,6 +641,11 @@ Partial Public Class Form2
             Form1.BeallitasokBetoltese()
             MessageBox.Show("Settings saved successfully!", "Save", MessageBoxButtons.OK, MessageBoxIcon.Information)
             Me.Hide()
+            ' BIZTONSÁGOS ÉS AGRESSZÍV FLUSH AZ ELREJTÉS UTÁN:
+            ' Kisöpörjük az INI írás és a GUI frissítés ideiglenes memóriaszemeteit
+            GC.Collect()
+            GC.WaitForPendingFinalizers()
+            GC.Collect()
         Catch ex As Exception
             MessageBox.Show("Save error: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try

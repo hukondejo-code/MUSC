@@ -6,7 +6,7 @@
     <StartupObject>MUSC.My.MyApplication</StartupObject>
     <UseWindowsForms>true</UseWindowsForms>
     <MyType>WindowsForms</MyType>
-    <ApplicationIcon>musc.ico</ApplicationIcon>
+    <ApplicationIcon>MUSC(26).ICO</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Version>1.2.0</Version>
     <AssemblyVersion>1.2.0.0</AssemblyVersion>
@@ -26,7 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="musc.ico" />
+    <Content Include="MUSC(26).ICO" />
   </ItemGroup>
 
   <ItemGroup>

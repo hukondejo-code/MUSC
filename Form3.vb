@@ -104,6 +104,11 @@ Public Class Form3
             Me.Invoke(Sub()
                           My.Forms.Form1.Show()
                           Me.Hide() ' Elrejtjük a Splash-t, hogy a főablak átvegye a helyét
+                          ' BIZTONSÁGOS ÉS AGRESSZÍV FLUSH AZ ELREJTÉS UTÁN:
+                          ' Kisöpörjük az INI írás és a GUI frissítés ideiglenes memóriaszemeteit
+                          GC.Collect()
+                          GC.WaitForPendingFinalizers()
+                          GC.Collect()
                       End Sub)
 
         Catch ex As Exception
@@ -121,4 +126,7 @@ Public Class Form3
         End Try
     End Sub
 
+    Private Sub PictureBox1_Click(sender As Object, e As EventArgs) Handles PictureBox1.Click
+
+    End Sub
 End Class

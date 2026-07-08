@@ -77,9 +77,9 @@ Partial Class Form2
         Panel1.Controls.Add(BtnMentes)
         Panel1.Controls.Add(flowRows)
         Panel1.Controls.Add(PictureBox1)
-        Panel1.Location = New Point(2, 1)
+        Panel1.Location = New Point(-2, 0)
         Panel1.Name = "Panel1"
-        Panel1.Size = New Size(866, 508)
+        Panel1.Size = New Size(873, 509)
         Panel1.TabIndex = 3
         ' 
         ' Label8
@@ -164,6 +164,7 @@ Partial Class Form2
         ' 
         ' flowRows
         ' 
+        flowRows.AutoScroll = True
         flowRows.BackColor = Color.WhiteSmoke
         flowRows.BorderStyle = BorderStyle.FixedSingle
         flowRows.FlowDirection = FlowDirection.TopDown
@@ -178,7 +179,7 @@ Partial Class Form2
         PictureBox1.BackgroundImageLayout = ImageLayout.Zoom
         PictureBox1.Location = New Point(737, 3)
         PictureBox1.Name = "PictureBox1"
-        PictureBox1.Size = New Size(119, 500)
+        PictureBox1.Size = New Size(131, 500)
         PictureBox1.TabIndex = 3
         PictureBox1.TabStop = False
         ' 
@@ -187,8 +188,10 @@ Partial Class Form2
         AutoScaleMode = AutoScaleMode.None
         ClientSize = New Size(871, 510)
         Controls.Add(Panel1)
-        FormBorderStyle = FormBorderStyle.None
+        FormBorderStyle = FormBorderStyle.FixedSingle
         Icon = CType(resources.GetObject("$this.Icon"), Icon)
+        MaximizeBox = False
+        MinimizeBox = False
         Name = "Form2"
         ShowInTaskbar = False
         StartPosition = FormStartPosition.CenterScreen

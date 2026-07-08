@@ -1259,4 +1259,17 @@ Public Class Form1
         Application.Exit()
     End Sub
 
+    Private Sub AboutToolStripMenuItem_Click(sender As Object, e As EventArgs) Handles AboutToolStripMenuItem.Click
+        ShowAboutBox()
+    End Sub
+    Private Sub ShowAboutBox()
+        Using frm As New Form4()
+            frm.ShowDialog(Me)
+        End Using ' Itt lefut a Form Dispose
+
+        ' KÉNYSZERÍTETT MÉRNÖKI TAKARÍTÁS (A szivárgás ellenszere):
+        GC.Collect()
+        GC.WaitForPendingFinalizers()
+        GC.Collect() ' Második futás a beragadt Win32 handle-ök miatt
+    End Sub
 End Class

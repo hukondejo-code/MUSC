@@ -33,6 +33,7 @@ Partial Class Form1
         TabControl1 = New TabControl()
         TabPage1 = New TabPage()
         Panel1 = New Panel()
+        AboutToolStripMenuItem = New ToolStripMenuItem()
         Panel9.SuspendLayout()
         MenuStrip1.SuspendLayout()
         TabControl1.SuspendLayout()
@@ -61,7 +62,7 @@ Partial Class Form1
         ' 
         ' FileToolStripMenuItem
         ' 
-        FileToolStripMenuItem.DropDownItems.AddRange(New ToolStripItem() {ServerStartupToolStripMenuItem, SettingsToolStripMenuItem, ExitServerShutdownToolStripMenuItem})
+        FileToolStripMenuItem.DropDownItems.AddRange(New ToolStripItem() {ServerStartupToolStripMenuItem, SettingsToolStripMenuItem, ExitServerShutdownToolStripMenuItem, AboutToolStripMenuItem})
         FileToolStripMenuItem.Name = "FileToolStripMenuItem"
         FileToolStripMenuItem.Size = New Size(37, 20)
         FileToolStripMenuItem.Text = "File"
@@ -124,9 +125,15 @@ Partial Class Form1
         Panel1.Size = New Size(1100, 552)
         Panel1.TabIndex = 0
         ' 
+        ' AboutToolStripMenuItem
+        ' 
+        AboutToolStripMenuItem.Name = "AboutToolStripMenuItem"
+        AboutToolStripMenuItem.Size = New Size(192, 22)
+        AboutToolStripMenuItem.Text = "About"
+        ' 
         ' Form1
         ' 
-        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
+        AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
         BackColor = Color.WhiteSmoke
         ClientSize = New Size(1114, 612)
@@ -158,5 +165,6 @@ Partial Class Form1
     Friend WithEvents SettingsToolStripMenuItem As ToolStripMenuItem
     Friend WithEvents ExitServerShutdownToolStripMenuItem As ToolStripMenuItem
     Friend WithEvents BtnShutdownApps As Button
+    Friend WithEvents AboutToolStripMenuItem As ToolStripMenuItem
 
 End Class
