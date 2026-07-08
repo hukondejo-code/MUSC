@@ -227,6 +227,59 @@ Public Class Form1
         End SyncLock
     End Function
 
+    ' --- Universal Server Log Vacuum (v1.2.0) -----------------------------------------------
+
+    ' Deletes stale *.log/*.txt/error.log junk from a slot's Log/LOG subfolder (falling back to
+    ' the slot's root folder when no Log/LOG subfolder exists) immediately before that slot's
+    ' process is started, so the child process never starts up with (or locks) yesterday's logs.
+    ' Unlike IsPortFreeAsync's in-memory scan, this does real disk I/O (enumeration + deletion),
+    ' so offloading via Task.Run is warranted; the already-Async Sub caller Awaits it directly
+    ' (no fire-and-forget, no GetAwaiter().GetResult() sync-over-async). Every failure - missing
+    ' folder, locked file, denied ACL - is swallowed from the caller's perspective and only
+    ' surfaced via the existing Log() sink, so a bad slot can never block or fail startup.
+    Private Function VacuumServerLogsAsync(index As Integer) As Task
+        Return Task.Run(
+            Sub()
+                Try
+                    Dim keyMappa = "MAPPA_" & index
+                    If Not Beallitasok.ContainsKey(keyMappa) Then Return
+                    Dim mappa = Beallitasok(keyMappa)
+                    If String.IsNullOrWhiteSpace(mappa) OrElse Not Directory.Exists(mappa) Then Return
+
+                    Dim logDir As String = Nothing
+                    For Each candidate In New String() {"Log", "LOG"}
+                        Dim probe = Path.Combine(mappa, candidate)
+                        If Directory.Exists(probe) Then
+                            logDir = probe
+                            Exit For
+                        End If
+                    Next
+                    If logDir Is Nothing Then logDir = mappa
+
+                    Dim targets As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+                    For Each pattern In New String() {"*.log", "*.txt", "error.log"}
+                        Try
+                            For Each f In Directory.GetFiles(logDir, pattern, SearchOption.TopDirectoryOnly)
+                                targets.Add(f)
+                            Next
+                        Catch ex As Exception
+                            Log($"VacuumServerLogsAsync: slot {index} failed enumerating '{pattern}' in {logDir} - {ex.Message}")
+                        End Try
+                    Next
+
+                    For Each f In targets
+                        Try
+                            File.Delete(f)
+                        Catch ex As Exception
+                            Log($"VacuumServerLogsAsync: slot {index} failed deleting {f} - {ex.Message}")
+                        End Try
+                    Next
+                Catch ex As Exception
+                    Log($"VacuumServerLogsAsync: slot {index} unexpected failure - {ex.Message}")
+                End Try
+            End Sub)
+    End Function
+
     ' Pure UI-thread status text mutation - recomputes from Beallitasok each time, so no
     ' suffix-stripping/idempotency bookkeeping is required. Must be called on the UI thread.
     Private Sub UpdateTabPageStatusText(index As Integer, blocked As Boolean)
@@ -684,6 +737,12 @@ Public Class Form1
                     Dim psi As New ProcessStartInfo()
                     psi.FileName = Path.Combine(mappa, exe)
                     psi.WorkingDirectory = mappa
+
+                    ' Universal Server Log Vacuum: purge this slot's stale *.log/*.txt/error.log
+                    ' junk before the process starts and locks any of these files. Awaited so
+                    ' cleanup always finishes before Process.Start; failures are silent to the
+                    ' user and only recorded via Log().
+                    Await VacuumServerLogsAsync(i)
 
                     Dim p As Process = Process.Start(psi)
 
