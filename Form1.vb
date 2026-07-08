@@ -2,6 +2,7 @@
 Imports System.IO
 Imports System.Threading
 Imports System.Text
+Imports System.Net.NetworkInformation
 
 Public Class Form1
 
@@ -32,6 +33,9 @@ Public Class Form1
     Public Beallitasok As New Dictionary(Of String, String)()
     ' Track started processes by index
     Private StartedProcesses As New Dictionary(Of Integer, Process)()
+    ' Tracks slots currently blocked because their configured PORT_i is in use
+    Private ReadOnly RowPortBlockedLock As New Object()
+    Private RowPortBlocked As New Dictionary(Of Integer, Boolean)()
     ' Logging
     Private ReadOnly logLock As New Object()
     Private ReadOnly LogFilePath As String = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "monitor.log")
@@ -170,6 +174,98 @@ Public Class Form1
         Return Nothing
     End Function
 
+    ' --- Universal port checking (v1.2.0) ---------------------------------------------------
+
+    ' Reads the optional PORT_i key for a slot. Returns False (and leaves port=0) when the key
+    ' is absent/invalid so callers can skip the check entirely for rows that don't configure it.
+    Private Function TryGetConfiguredPort(index As Integer, ByRef port As Integer) As Boolean
+        port = 0
+        Try
+            Dim key = "PORT_" & index
+            If Not Beallitasok.ContainsKey(key) Then Return False
+            Dim raw = Beallitasok(key)
+            If String.IsNullOrWhiteSpace(raw) Then Return False
+            Return Integer.TryParse(raw.Trim(), port) AndAlso port > 0 AndAlso port <= 65535
+        Catch ex As Exception
+            Log($"TryGetConfiguredPort: failed reading PORT_{index} - {ex.Message}")
+            Return False
+        End Try
+    End Function
+
+    ' Allocation-light TCP/UDP listener scan. The work itself is synchronous, in-memory
+    ' enumeration (no I/O), so it runs inline and returns an already-completed Task via
+    ' Task.FromResult instead of Task.Run - callers can still Await it (no GetAwaiter().GetResult()
+    ' sync-over-async pattern), but there is no thread-pool hop and therefore no risk of
+    ' thread-pool blocking/starvation at any call site.
+    ' Fails OPEN (assumes the port is free) on enumeration errors so a transient network-stack
+    ' issue never blocks a legitimate startup/restart.
+    Private Function IsPortFreeAsync(port As Integer) As Task(Of Boolean)
+        Try
+            Dim ipProps = IPGlobalProperties.GetIPGlobalProperties()
+            For Each ep In ipProps.GetActiveTcpListeners()
+                If ep.Port = port Then Return Task.FromResult(False)
+            Next
+            For Each ep In ipProps.GetActiveUdpListeners()
+                If ep.Port = port Then Return Task.FromResult(False)
+            Next
+            Return Task.FromResult(True)
+        Catch ex As Exception
+            Log($"IsPortFreeAsync: enumeration failed for port {port} - {ex.Message}; assuming free")
+            Return Task.FromResult(True)
+        End Try
+    End Function
+
+    Private Sub SetRowPortBlocked(index As Integer, blocked As Boolean)
+        SyncLock RowPortBlockedLock
+            RowPortBlocked(index) = blocked
+        End SyncLock
+    End Sub
+
+    Private Function IsRowPortBlocked(index As Integer) As Boolean
+        SyncLock RowPortBlockedLock
+            Return RowPortBlocked.ContainsKey(index) AndAlso RowPortBlocked(index)
+        End SyncLock
+    End Function
+
+    ' Pure UI-thread status text mutation - recomputes from Beallitasok each time, so no
+    ' suffix-stripping/idempotency bookkeeping is required. Must be called on the UI thread.
+    Private Sub UpdateTabPageStatusText(index As Integer, blocked As Boolean)
+        Try
+            If TabControl1 Is Nothing OrElse TabControl1.TabPages.Count < index Then Return
+            Dim baseName = If(Beallitasok.ContainsKey("NEV_" & index), Beallitasok("NEV_" & index), "NOT DEFINED")
+            TabControl1.TabPages(index - 1).Text = If(blocked, baseName & " - Port Blocked", baseName)
+            TabControl1.Invalidate()
+        Catch ex As Exception
+            Log($"UpdateTabPageStatusText: failed updating tab {index} - {ex.Message}")
+        End Try
+    End Sub
+
+    ' Opens the configured CFG_i file with the OS-associated editor. Mirrors Form2's existing
+    ' btnOpenCfg shortcut (UseShellExecute=True keeps this at ~0MB inside the MUSC process).
+    Private Sub OpenConfigForSlot(index As Integer)
+        Try
+            Dim key = "CFG_" & index
+            If Not Beallitasok.ContainsKey(key) OrElse String.IsNullOrWhiteSpace(Beallitasok(key)) Then
+                MessageBox.Show("No configuration file assigned for this application.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                Return
+            End If
+
+            Dim cfgPath = Beallitasok(key)
+            If Not Path.IsPathRooted(cfgPath) Then
+                cfgPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, cfgPath)
+            End If
+
+            If Not File.Exists(cfgPath) Then
+                MessageBox.Show($"Config file not found: {cfgPath}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                Return
+            End If
+
+            Process.Start(New ProcessStartInfo(cfgPath) With {.UseShellExecute = True})
+        Catch ex As Exception
+            MessageBox.Show("Failed to open config: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
+    End Sub
+
     ' Ensure TabControl has exactly n TabPages; each tab gets a Panel named Panel{index}
     Private Sub EnsureTabsMatchCount(n As Integer)
         If TabControl1 Is Nothing Then Return
@@ -188,9 +284,25 @@ Public Class Form1
                 .BorderStyle = BorderStyle.None
             }
 
-            ' Previously we added a per-tab Shutdown button here; removed because auto-restart
-            ' now manages lifecycle and the per-tab button caused clutter.
+            ' Small anchored shortcut button (top-right) that opens the configured CFG_i file
+            ' with the OS default editor (see OpenConfigForSlot). Added to tp.Controls AFTER the
+            ' Dock=Fill panel (controls added later sit frontmost in Z-order) and explicitly
+            ' brought to front so it stays visible/clickable even once an embedded external
+            ' process window is parented into the panel underneath it.
+            Dim btnCfgTab As New Button() With {
+                .Name = "BtnCfg_" & newIndex,
+                .Text = "Cfg",
+                .Width = 50,
+                .Height = 24,
+                .Anchor = AnchorStyles.Top Or AnchorStyles.Right
+            }
+            btnCfgTab.Location = New Point(Math.Max(4, tp.ClientSize.Width - btnCfgTab.Width - 8), 4)
+            Dim idxCfg = newIndex
+            AddHandler btnCfgTab.Click, Sub(s, e) OpenConfigForSlot(idxCfg)
+
             tp.Controls.Add(pnl)
+            tp.Controls.Add(btnCfgTab)
+            btnCfgTab.BringToFront()
             TabControl1.TabPages.Add(tp)
         End While
 
@@ -270,22 +382,22 @@ Public Class Form1
                             .Name = "EnableAutoRestartToolStripMenuItem"
                         }
                         AddHandler restartItem.Click, Sub(s, ev)
-                                                           Try
-                                                               Dim itm = CType(s, ToolStripMenuItem)
-                                                               Dim enabled = itm.Checked
-                                                               Try
-                                                                   Dim iniPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings.ini")
-                                                                   Dim existing = If(File.Exists(iniPath), SettingsStore.ReadSettingsFromFile(iniPath), New Dictionary(Of String, String)())
-                                                                   existing("PRCEN_GLOBAL") = If(enabled, "1", "0")
-                                                                   SettingsStore.WriteSettingsToFile(iniPath, existing)
-                                                                   If Beallitasok Is Nothing Then Beallitasok = New Dictionary(Of String, String)()
-                                                                   Beallitasok("PRCEN_GLOBAL") = If(enabled, "1", "0")
-                                                               Catch
-                                                               End Try
-                                                               Log("Auto-Restart toggled: " & enabled.ToString())
-                                                           Catch
-                                                           End Try
-                                                       End Sub
+                                                          Try
+                                                              Dim itm = CType(s, ToolStripMenuItem)
+                                                              Dim enabled = itm.Checked
+                                                              Try
+                                                                  Dim iniPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings.ini")
+                                                                  Dim existing = If(File.Exists(iniPath), SettingsStore.ReadSettingsFromFile(iniPath), New Dictionary(Of String, String)())
+                                                                  existing("PRCEN_GLOBAL") = If(enabled, "1", "0")
+                                                                  SettingsStore.WriteSettingsToFile(iniPath, existing)
+                                                                  If Beallitasok Is Nothing Then Beallitasok = New Dictionary(Of String, String)()
+                                                                  Beallitasok("PRCEN_GLOBAL") = If(enabled, "1", "0")
+                                                              Catch
+                                                              End Try
+                                                              Log("Auto-Restart toggled: " & enabled.ToString())
+                                                          Catch
+                                                          End Try
+                                                      End Sub
                         fileItem.DropDownItems.Insert(0, restartItem)
                     Else
                         existingRestartItem.Checked = restartEnabled
@@ -298,24 +410,24 @@ Public Class Form1
                             .Name = "EnableLoggingToolStripMenuItem"
                         }
                         AddHandler logItem.Click, Sub(s, ev)
-                                                       Try
-                                                           Dim itm = CType(s, ToolStripMenuItem)
-                                                           LoggingEnabled = itm.Checked
-                                                           ' persist to INI immediately
-                                                           Try
-                                                               Dim iniPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings.ini")
-                                                               Dim existing = If(File.Exists(iniPath), SettingsStore.ReadSettingsFromFile(iniPath), New Dictionary(Of String, String)())
-                                                               existing("LOGGING_ENABLED") = If(LoggingEnabled, "1", "0")
-                                                               SettingsStore.WriteSettingsToFile(iniPath, existing)
-                                                               ' update in-memory map
-                                                               If Beallitasok Is Nothing Then Beallitasok = New Dictionary(Of String, String)()
-                                                               Beallitasok("LOGGING_ENABLED") = If(LoggingEnabled, "1", "0")
-                                                           Catch
-                                                           End Try
-                                                           Log("Logging toggled: " & LoggingEnabled.ToString())
-                                                       Catch
-                                                       End Try
-                                                   End Sub
+                                                      Try
+                                                          Dim itm = CType(s, ToolStripMenuItem)
+                                                          LoggingEnabled = itm.Checked
+                                                          ' persist to INI immediately
+                                                          Try
+                                                              Dim iniPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings.ini")
+                                                              Dim existing = If(File.Exists(iniPath), SettingsStore.ReadSettingsFromFile(iniPath), New Dictionary(Of String, String)())
+                                                              existing("LOGGING_ENABLED") = If(LoggingEnabled, "1", "0")
+                                                              SettingsStore.WriteSettingsToFile(iniPath, existing)
+                                                              ' update in-memory map
+                                                              If Beallitasok Is Nothing Then Beallitasok = New Dictionary(Of String, String)()
+                                                              Beallitasok("LOGGING_ENABLED") = If(LoggingEnabled, "1", "0")
+                                                          Catch
+                                                          End Try
+                                                          Log("Logging toggled: " & LoggingEnabled.ToString())
+                                                      Catch
+                                                      End Try
+                                                  End Sub
                         Dim restartIndex As Integer = fileItem.DropDownItems.IndexOfKey("EnableAutoRestartToolStripMenuItem")
                         If restartIndex >= 0 Then
                             fileItem.DropDownItems.Insert(restartIndex + 1, logItem)
@@ -518,7 +630,10 @@ Public Class Form1
 
 
     ' --- A 8 alkalmazás egymás utáni indítása, beágyazása és DUPLIKÁCIÓ ELLENŐRZÉSE ---
-    Private Sub SzoftvercsomagInditasa()
+    ' Async Sub is intentional: this method is only ever used as a dedicated background Thread's
+    ' entry point (see InditasFolyamata) and nothing joins/awaits it, so a fire-and-forget async
+    ' entry point is the correct shape for properly awaiting IsPortFreeAsync without blocking.
+    Private Async Sub SzoftvercsomagInditasa()
         Dim total As Integer = GetSettingsCount()
         If total < 1 Then total = 1
 
@@ -537,11 +652,32 @@ Public Class Form1
 
                     Dim trackedProc = GetTrackedProcess(i)
                     If trackedProc IsNot Nothing AndAlso Not trackedProc.HasExited Then
+                        ' A confirmed-running process cannot be port-blocked right now; clear any
+                        ' stale flag so the tab text/color never gets stuck on a prior failure.
+                        If IsRowPortBlocked(i) Then
+                            SetRowPortBlocked(i, False)
+                            Dim capturedIndexRunning = i
+                            Me.Invoke(Sub() UpdateTabPageStatusText(capturedIndexRunning, False))
+                        End If
                         Me.Invoke(Sub()
                                       MessageBox.Show($"The '{szoftverNev}' slot is already running with PID {trackedProc.Id}. Skipping duplicate start.", "Alert!", MessageBoxButtons.OK, MessageBoxIcon.Warning)
                                   End Sub)
                         Log($"Startup: slot {i} already tracked with PID {trackedProc.Id}; skipping duplicate start")
                         Continue For
+                    End If
+
+                    ' Universal port check: never spawn a process whose configured PORT_i is
+                    ' already in use. Silently skipped for rows without a PORT_i key.
+                    Dim portToCheck As Integer = 0
+                    If TryGetConfiguredPort(i, portToCheck) Then
+                        Dim portFree = Await IsPortFreeAsync(portToCheck)
+                        If Not portFree Then
+                            SetRowPortBlocked(i, True)
+                            Log($"Startup: slot {i} port {portToCheck} is busy -> skip start (Port Blocked)")
+                            Dim capturedIndex = i
+                            Me.Invoke(Sub() UpdateTabPageStatusText(capturedIndex, True))
+                            Continue For
+                        End If
                     End If
 
                     ' Ha nem fut, akkor elindítjuk a megszokott módon
@@ -554,6 +690,9 @@ Public Class Form1
                     ' track started process so we can shut it down later
                     Try
                         SetTrackedProcess(i, p)
+                        SetRowPortBlocked(i, False)
+                        Dim capturedIndexOk = i
+                        Me.Invoke(Sub() UpdateTabPageStatusText(capturedIndexOk, False))
                         Log($"Startup: slot {i} started PID {If(p IsNot Nothing, p.Id, -1)} for {szoftverNev}")
                     Catch
                     End Try
@@ -728,7 +867,7 @@ Public Class Form1
         monitorCts = New Threading.CancellationTokenSource()
         Dim token = monitorCts.Token
 
-        Task.Run(Sub()
+        Task.Run(Async Function() As Task
                      Try
                          While Not token.IsCancellationRequested
                              Try
@@ -766,6 +905,7 @@ Public Class Form1
 
                                      Dim needRestart As Boolean = False
                                      Dim existingProc As Process = Nothing
+                                     Dim slotConfirmedRunning As Boolean = False
                                      SyncLock StartedProcesses
                                          If StartedProcesses.ContainsKey(i) Then
                                              existingProc = StartedProcesses(i)
@@ -777,6 +917,7 @@ Public Class Form1
                                                  needRestart = True
                                              Else
                                                  Log("Monitor: slot " & i & " tracked process Id=" & existingProc.Id & " is running -> skip restart")
+                                                 slotConfirmedRunning = True
                                              End If
                                          Else
                                              ' Do not auto-start slots that were not previously started by this manager session
@@ -784,6 +925,14 @@ Public Class Form1
                                              needRestart = False
                                          End If
                                      End SyncLock
+
+                                     ' Confirmed-running process cannot be port-blocked; clear any stale flag.
+                                     ' Done outside the StartedProcesses lock to avoid invoking the UI thread while holding it.
+                                     If slotConfirmedRunning AndAlso IsRowPortBlocked(i) Then
+                                         SetRowPortBlocked(i, False)
+                                         Dim capturedIndexRunning = i
+                                         Me.Invoke(Sub() UpdateTabPageStatusText(capturedIndexRunning, False))
+                                     End If
 
                                      If needRestart Then
                                          ' mark starting
@@ -817,6 +966,23 @@ Public Class Form1
                                                  shouldStart = True
                                              End If
                                          End SyncLock
+
+                                         ' Universal port check: never restart a slot whose configured
+                                         ' PORT_i is already in use. Silently skipped for rows without one.
+                                         If shouldStart Then
+                                             Dim portToCheck As Integer = 0
+                                             If TryGetConfiguredPort(i, portToCheck) Then
+                                                 Dim portFree = Await IsPortFreeAsync(portToCheck)
+                                                 If Not portFree Then
+                                                     shouldStart = False
+                                                     SetRowPortBlocked(i, True)
+                                                     Log($"Monitor: slot {i} port {portToCheck} is busy -> skip restart (Port Blocked)")
+                                                     Dim capturedIndex = i
+                                                     Me.Invoke(Sub() UpdateTabPageStatusText(capturedIndex, True))
+                                                 End If
+                                             End If
+                                         End If
+
                                          If shouldStart Then
                                              Log("Monitor: slot " & i & " confirmed need to start")
                                              Try
@@ -841,6 +1007,9 @@ Public Class Form1
 
                                                      If p IsNot Nothing Then
                                                          SetTrackedProcess(i, p)
+                                                         SetRowPortBlocked(i, False)
+                                                         Dim capturedIndexOk = i
+                                                         Me.Invoke(Sub() UpdateTabPageStatusText(capturedIndexOk, False))
                                                          ' embed window on UI thread similar to SzoftvercsomagInditasa
                                                          Log($"Monitor: started process Id={If(p IsNot Nothing, p.Id, -1)} for slot {i}")
                                                          Me.Invoke(Sub()
@@ -917,7 +1086,7 @@ Public Class Form1
                          End While
                      Catch
                      End Try
-                 End Sub, token)
+                 End Function, token)
     End Sub
 
     Private Sub StopProcessMonitor()
@@ -996,6 +1165,12 @@ Public Class Form1
                     aktualisHatterSzin = Color.FromArgb(65, 65, 65) ' Sötétszürke háttér
                 End If
             End If
+        End If
+
+        ' 1b. PORT BLOCKED (Amber/Warning) - overrides Piros/Szürke/Zöld when the configured
+        ' PORT_i is currently in use, so the operator sees the auto-restart is intentionally held.
+        If IsRowPortBlocked(sorszam) Then
+            aktualisHatterSzin = Color.FromArgb(180, 140, 0) ' Sötét sárga/borostyán (Amber)
         End If
 
         ' 2. FÓKUSZ/KIJELÖLÉS: Ha épp ezen a fülön áll a felhasználó, kicsit megvilágítjuk a keretét/színét
