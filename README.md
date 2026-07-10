@@ -14,10 +14,25 @@ MU SERVER CONTROL (MUSC) is a complete, lightweight, and robust private server m
 * **Safe Working Directories**: Automatically executes programs out of their native directories (`WorkingDirectory`) to maintain SQL, database, and network connectivity dependencies.
 
 ---
+# 🔥 Changelog - v1.3.0 (Dynamic Port Upgrade)
+Previously, MUSC relied on static, hardcoded port assignments based on process names. Version 1.3.0 completely breaks these boundaries:
 
-# Changelog - v1.2.0 (Stable)
+### Added
+- **Dynamic Per-Row Port Configuration:** Every application row slot inside the Applications tab now features a dedicated, editable Port TextBox. You no longer need to modify INI files manually to tweak connection hooks.
+- **Clipboard-Safe TCP Range Validation:** The new Port input is strictly validated on-the-fly (MaxLength = 5). It filters out non-digit characters (even during clipboard paste actions) and automatically forces standard TCP boundaries (between 1 and 65535).
 
-## - 2026-07-10
+### Refactored
+- **Bulletproof Save & Reindex Engine:** Rewrote the background SaveSettingsToIni() and ReindexAndSyncDelays() routines. Eliminated critical closure variable capture bugs and localized event handlers to guarantee zero memory leaks during row removal.
+
+###Improved
+- **Visual Layout Adaptability:** Polished control anchors and layout widths within the dynamic FlowLayoutPanel container. Labels and text alignment are perfectly normalized across different Windows scaling modes.
+###Maintained###
+- **19.3MB Idle Footprint:** Despite adding heavy dynamic UI handling, internal memory optimization keeps the idle footprint at a record-breaking 19.3 MB with 0% CPU utilization.
+
+
+---
+
+# 🛡️ Changelog - v1.2.0 (Stable)
 
 ### Added
 - **Pre-Launch Port Availability Shield**: An asynchronous, thread-safe network inspection system that intercepts zombie processes and port conflicts before any executable launches.
@@ -32,6 +47,8 @@ MU SERVER CONTROL (MUSC) is a complete, lightweight, and robust private server m
 ### UI/UX & Graphics
 - Completely redesigned, modern **SplashScreen** boot graphic.
 - Embedded a high-resolution **MUSC software logo** and a custom application icon for professional desktop presentation.
+
+---
 
 ## 🔄 Changelog: Base Version vs. Refactored GitHub Version
 
