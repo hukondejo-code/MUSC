@@ -26,6 +26,7 @@ Partial Class Form2
         btnAddRow = New Button()
         BtnMentes = New Button()
         Panel1 = New Panel()
+        Label9 = New Label()
         Label8 = New Label()
         Label7 = New Label()
         Label6 = New Label()
@@ -65,6 +66,7 @@ Partial Class Form2
         Panel1.BackColor = SystemColors.ControlLight
         Panel1.BackgroundImageLayout = ImageLayout.None
         Panel1.BorderStyle = BorderStyle.FixedSingle
+        Panel1.Controls.Add(Label9)
         Panel1.Controls.Add(Label8)
         Panel1.Controls.Add(Label7)
         Panel1.Controls.Add(Label6)
@@ -82,6 +84,16 @@ Partial Class Form2
         Panel1.Size = New Size(873, 509)
         Panel1.TabIndex = 3
         ' 
+        ' Label9
+        ' 
+        Label9.AutoSize = True
+        Label9.Font = New Font("Segoe UI", 6.75F)
+        Label9.Location = New Point(581, 7)
+        Label9.Name = "Label9"
+        Label9.Size = New Size(35, 12)
+        Label9.TabIndex = 11
+        Label9.Text = "Port Nr."
+        ' 
         ' Label8
         ' 
         Label8.AutoSize = True
@@ -96,7 +108,7 @@ Partial Class Form2
         ' 
         Label7.AutoSize = True
         Label7.Font = New Font("Segoe UI", 6.75F)
-        Label7.Location = New Point(582, 7)
+        Label7.Location = New Point(644, 7)
         Label7.Name = "Label7"
         Label7.Size = New Size(74, 12)
         Label7.TabIndex = 7
@@ -106,11 +118,11 @@ Partial Class Form2
         ' 
         Label6.AutoSize = True
         Label6.Font = New Font("Segoe UI", 6.75F)
-        Label6.Location = New Point(505, 7)
+        Label6.Location = New Point(514, 7)
         Label6.Name = "Label6"
-        Label6.Size = New Size(71, 12)
+        Label6.Size = New Size(61, 12)
         Label6.TabIndex = 6
-        Label6.Text = "Startup Delay (S)"
+        Label6.Text = "Start Delay (S)"
         ' 
         ' Label5
         ' 
@@ -126,17 +138,17 @@ Partial Class Form2
         ' 
         Label4.AutoSize = True
         Label4.Font = New Font("Segoe UI", 6.75F)
-        Label4.Location = New Point(376, 7)
+        Label4.Location = New Point(389, 7)
         Label4.Name = "Label4"
-        Label4.Size = New Size(62, 12)
+        Label4.Size = New Size(36, 12)
         Label4.TabIndex = 4
-        Label4.Text = "Browse Config"
+        Label4.Text = "CFG File"
         ' 
         ' Label3
         ' 
         Label3.AutoSize = True
         Label3.Font = New Font("Segoe UI", 6.75F)
-        Label3.Location = New Point(290, 7)
+        Label3.Location = New Point(303, 7)
         Label3.Name = "Label3"
         Label3.Size = New Size(80, 12)
         Label3.TabIndex = 3
@@ -148,9 +160,9 @@ Partial Class Form2
         Label2.Font = New Font("Segoe UI", 6.75F)
         Label2.Location = New Point(155, 7)
         Label2.Name = "Label2"
-        Label2.Size = New Size(61, 12)
+        Label2.Size = New Size(79, 12)
         Label2.TabIndex = 2
-        Label2.Text = "Cfg File Name"
+        Label2.Text = "(Config File Name)"
         ' 
         ' Label1
         ' 
@@ -215,4 +227,5 @@ Partial Class Form2
     Friend WithEvents Label3 As Label
     Friend WithEvents Label2 As Label
     Friend WithEvents Label8 As Label
+    Friend WithEvents Label9 As Label
 End Class
