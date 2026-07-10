@@ -635,6 +635,31 @@ Partial Public Class Form2
             Catch
             End Try
 
+            ' GOLYÓÁLLÓ INTELIGENS PORT-MENTÉS
+            For i As Integer = 1 To 7
+                ' BIZTONSÁGI PAJZS: Csak akkor vizsgáljuk, ha a kulcs létezik a resultban!
+                If result.ContainsKey("EXE_" & i) AndAlso result.ContainsKey("NEV_" & i) Then
+
+                    Dim exeNev As String = result("EXE_" & i).ToString().ToLower()
+                    Dim fNev As String = result("NEV_" & i).ToString().ToLower()
+                    Dim defaultPort As Integer = 0
+
+                    If exeNev.Contains("connect") Then defaultPort = 44405
+                    If exeNev.Contains("login") Then defaultPort = 55970
+                    If fNev.Contains("link") Then defaultPort = 55960
+                    If exeNev.Contains("gameserver") Then
+                        If i = 4 Then defaultPort = 55901
+                        If i = 5 Then defaultPort = 55903
+                        If i = 6 Then defaultPort = 55905
+                        If i = 7 Then defaultPort = 55907
+                    End If
+
+                    If defaultPort > 0 Then
+                        result("PORT_" & i) = defaultPort.ToString()
+                    End If
+                End If
+            Next
+
             SettingsStore.WriteSettingsToFile(IniPath, result)
 
             ' Refresh Form1 and hide (do not dispose so user can re-open settings)

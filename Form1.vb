@@ -716,7 +716,8 @@ Public Class Form1
                                       MessageBox.Show($"The '{szoftverNev}' slot is already running with PID {trackedProc.Id}. Skipping duplicate start.", "Alert!", MessageBoxButtons.OK, MessageBoxIcon.Warning)
                                   End Sub)
                         Log($"Startup: slot {i} already tracked with PID {trackedProc.Id}; skipping duplicate start")
-                        Continue For
+                        'Continue For cseréje Exit Sub-ra => megállítjuk a folyamatot lefolglalt port esetén
+                        Exit Sub
                     End If
 
                     ' Universal port check: never spawn a process whose configured PORT_i is
@@ -729,7 +730,8 @@ Public Class Form1
                             Log($"Startup: slot {i} port {portToCheck} is busy -> skip start (Port Blocked)")
                             Dim capturedIndex = i
                             Me.Invoke(Sub() UpdateTabPageStatusText(capturedIndex, True))
-                            Continue For
+                            'Continue For cseréje Exit Sub-ra => megállítjuk a folyamatot lefolglalt port esetén
+                            Exit Sub
                         End If
                     End If
 

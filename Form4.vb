@@ -2,7 +2,7 @@
 
     Private Sub Form4_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         ' 1. Szöveg feltöltése (0 MB belső RAM overhead)
-        rtbAbout.Text = "MU Server Control (MUSC) v1.2.0" & vbCrLf & vbCrLf &
+        rtbAbout.Text = "MU Server Control (MUSC)        " & vbCrLf & vbCrLf &
                         "An ultra-lightweight, resource-friendly private server manager sofware," & vbCrLf &
                         "optimized for minimal memory usage and maximal stability." & vbCrLf & vbCrLf &
                         "Main features:" & vbCrLf &
