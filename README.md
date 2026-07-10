@@ -15,6 +15,24 @@ MU SERVER CONTROL (MUSC) is a complete, lightweight, and robust private server m
 
 ---
 
+# Changelog - v1.2.0 (Stable)
+
+## - 2026-07-10
+
+### Added
+- **Pre-Launch Port Availability Shield**: An asynchronous, thread-safe network inspection system that intercepts zombie processes and port conflicts before any executable launches.
+- **Dynamic Amber/Warning Layout**: Implemented an automated fallback where affected TabControl tabs switch to an Amber warning color if a port conflict is detected.
+- **Smart Port Scanner**: Integrated an automated `TryGetConfiguredPort` logic that reads target ports directly from the sequential `Settings.ini` configuration.
+- **Formatted About Dialog**: Added a clean, RichTextBox-based, center-aligned About window featuring native Win32 URL execution with 0 MB internal RAM overhead.
+
+### Performance & Optimization
+- **Aggressive Resource Flush Engine**: Deployed explicit `GC.Collect` and component `Dispose` protocols triggered immediately after hiding or closing the SplashScreen (Form3) and Settings (Form2).
+- **Record-Breaking RAM Footprint**: Successfully reduced idle memory utilization from ~19.3 MB down to an absolute record low of **~14.7 MB**.
+
+### UI/UX & Graphics
+- Completely redesigned, modern **SplashScreen** boot graphic.
+- Embedded a high-resolution **MUSC software logo** and a custom application icon for professional desktop presentation.
+
 ## 🔄 Changelog: Base Version vs. Refactored GitHub Version
 
 The software has undergone a comprehensive structural rewrite, transitioning from a rigid monolithic prototype into a fully modular, enterprise-grade server manager.
