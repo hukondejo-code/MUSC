@@ -26,7 +26,7 @@ Previously, MUSC relied on static, hardcoded port assignments based on process n
 
 ###Improved
 - **Visual Layout Adaptability:** Polished control anchors and layout widths within the dynamic FlowLayoutPanel container. Labels and text alignment are perfectly normalized across different Windows scaling modes.
-###Maintained###
+###Maintained
 - **19.3MB Idle Footprint:** Despite adding heavy dynamic UI handling, internal memory optimization keeps the idle footprint at a record-breaking 19.3 MB with 0% CPU utilization.
 
 
