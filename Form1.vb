@@ -43,6 +43,8 @@ Public Class Form1
     ' Color scheme for enabled/disabled buttons
     Public colorEnabled As Color = Color.Magenta
     Public colorDisabled As Color = Color.DarkMagenta
+    Public e As EventArgs = EventArgs.Empty
+    Public tabBackColor As Color = Color.FromArgb(10, 0, 0, 0) ' Set the background color to transparent
 
 
     Private Sub Log(message As String)
