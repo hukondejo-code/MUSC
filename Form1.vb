@@ -41,11 +41,9 @@ Public Class Form1
     Private ReadOnly LogFilePath As String = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "monitor.log")
     Private LoggingEnabled As Boolean = False
     ' Color scheme for enabled/disabled buttons
-    Public colorEnabled As Color = Color.Magenta
-    Public colorDisabled As Color = Color.DarkMagenta
-    Public e As EventArgs = EventArgs.Empty
+    Public colorEnabled As Color = Color.FromArgb(80, 80, 80)
+    Public colorDisabled As Color = Color.FromArgb(150, 150, 150)
     Public tabBackColor As Color = Color.FromArgb(10, 0, 0, 0) ' Set the background color to transparent
-
 
     Private Sub Log(message As String)
         Try
@@ -349,12 +347,13 @@ Public Class Form1
             ' Dock=Fill panel (controls added later sit frontmost in Z-order) and explicitly
             ' brought to front so it stays visible/clickable even once an embedded external
             ' process window is parented into the panel underneath it.
+
             Dim btnCfgTab As New Button() With {
-                .Name = "BtnCfg_" & newIndex,
-                .Text = "Cfg",
-                .Width = 50,
-                .Height = 24,
-                .Anchor = AnchorStyles.Top Or AnchorStyles.Right
+            .Name = "BtnCfg_" & newIndex,
+            .Text = "Cfg",
+            .Width = 50,
+            .Height = 24,
+            .Anchor = AnchorStyles.Top Or AnchorStyles.Right
             }
             btnCfgTab.Location = New Point(Math.Max(4, tp.ClientSize.Width - btnCfgTab.Width - 8), 4)
             Dim idxCfg = newIndex
@@ -381,8 +380,11 @@ Public Class Form1
         ' Button and dropdown menu enabling/disabling and recoloring to default.
         btnSettings.Enabled = True : btnSettings.BackColor = colorEnabled : btnShutDown.Enabled = False : btnShutDown.BackColor = colorDisabled : btnStartUp.Enabled = True : btnStartUp.BackColor = colorEnabled
         SettingsToolStripMenuItem.Enabled = True : ServerStartupToolStripMenuItem.Enabled = True : ServerShutdownToolStripMenuItem.Enabled = False : ExitServerShutdownToolStripMenuItem.Enabled = True
+
         BeallitasokBetoltese()
         AblakFülNevekFrissitese()
+        ' calling setStyle with Nothing arguments to ensure the TabControl is drawn with the custom style
+
 
         ' Populate StartedProcesses from currently running system processes that match configured EXE names
         Try
@@ -1219,6 +1221,12 @@ Public Class Form1
         Dim g As Graphics = e.Graphics
         Dim tp As TabPage = TabControl1.TabPages(e.Index)
         Dim fülTeglalap As Rectangle = e.Bounds
+
+        ' Átrajzoljuk a háttérszínt áttetszőre
+        Using backBrush As New SolidBrush(tabBackColor)
+            e.Graphics.FillRectangle(backBrush, TabControl1.ClientRectangle)
+        End Using
+
 
         ' 1. ALAPÉRTELMEZETT STÁTUSZ: PIROS (Ha nincs betallózva semmi)
         Dim aktualisHatterSzin As Color = Color.FromArgb(160, 40, 40) ' Elegáns sötétpiros

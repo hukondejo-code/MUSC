@@ -10,6 +10,9 @@ Partial Public Class Form2
 
     Private Sub Form2_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
+            ' preventing acces to controls before Form2_Load is finished
+            controlPrevent()
+
             ' Migrate legacy file if present
             SettingsStore.MigrateDatToIni(AppDomain.CurrentDomain.BaseDirectory)
 
@@ -115,8 +118,13 @@ Partial Public Class Form2
             Catch
             End Try
 
-            ' Resize handler to adapt row widths
+            ' Biztosítjuk a tab elrendezés frissülését a méret számítása előtt
+            Me.PerformLayout()
+
+            ' Resize handler regisztrálása
             AddHandler Me.Resize, Sub() AdjustRowWidths()
+
+            ' Első kényszerített végrehajtás
             AdjustRowWidths()
 
         Catch ex As Exception
@@ -125,12 +133,30 @@ Partial Public Class Form2
     End Sub
 
     Private Sub AdjustRowWidths()
+        ' Megkeressük a flowRows panelt a teljes formon belül (True paraméterrel a gyerekek között is)
         Dim container = TryCast(Me.Controls.Find("flowRows", True).FirstOrDefault(), FlowLayoutPanel)
-        If container Is Nothing Then Return
-        For Each ctrl As Control In container.Controls
-            ctrl.Width = Math.Max(200, container.ClientSize.Width - 25)
-        Next
+
+        If container IsNot Nothing Then
+            ' Kényszerítjük, hogy fentről lefelé pakoljon és ne törje meg a sorokat oldalra
+            container.FlowDirection = FlowDirection.TopDown
+            container.WrapContents = False
+            container.HorizontalScroll.Maximum = 0
+            container.AutoScroll = True
+
+            ' Felfüggesztjük a rajzolást a villogás elkerülésére
+            container.SuspendLayout()
+
+            For Each ctrl As Control In container.Controls
+                ' A SystemInformation.VerticalScrollBarWidth (általában 17) + a margók miatt a -25 jó, 
+                ' de a ClientSize helyett expliciten korlátozzuk a görgetősáv helyét.
+                Dim targetWidth As Integer = container.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 4
+                ctrl.Width = Math.Max(200, targetWidth)
+            Next
+
+            container.ResumeLayout()
+        End If
     End Sub
+
 
     ' Ensure PrcTimer accepts only digits and normalizes value on changes/leave
     Private Sub PrcTimer_KeyPress(sender As Object, e As KeyPressEventArgs)
@@ -521,6 +547,8 @@ Partial Public Class Form2
                                             SaveSettingsToIni()
                                         Catch
                                         End Try
+                                        ' preventing acces to controls after row removal
+                                        controlPrevent()
                                     End Sub
 
         p.Controls.Add(lbl)
@@ -899,5 +927,10 @@ Partial Public Class Form2
             Form1.BeallitasokBetoltese()
         Catch
         End Try
+    End Sub
+    Sub controlPrevent()
+
+        Form1.btnSettings.Enabled = False : Form1.btnSettings.BackColor = Form1.colorDisabled : Form1.btnShutDown.Enabled = False : Form1.btnShutDown.BackColor = Form1.colorDisabled : Form1.btnStartUp.Enabled = False : Form1.btnStartUp.BackColor = Form1.colorDisabled
+        Form1.SettingsToolStripMenuItem.Enabled = False : Form1.ServerShutdownToolStripMenuItem.Enabled = False : Form1.ServerStartupToolStripMenuItem.Enabled = False
     End Sub
 End Class
