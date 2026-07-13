@@ -895,13 +895,9 @@ Partial Public Class Form2
             Next
 
             SettingsStore.WriteSettingsToFile(IniPath, ini)
+
             Form1.BeallitasokBetoltese()
         Catch
         End Try
     End Sub
-
-    Private Sub ListView1_SelectedIndexChanged(sender As Object, e As EventArgs)
-
-    End Sub
-
 End Class

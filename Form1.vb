@@ -40,6 +40,11 @@ Public Class Form1
     Private ReadOnly logLock As New Object()
     Private ReadOnly LogFilePath As String = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "monitor.log")
     Private LoggingEnabled As Boolean = False
+    ' Color scheme for enabled/disabled buttons
+    Public colorEnabled As Color = Color.Magenta
+    Public colorDisabled As Color = Color.DarkMagenta
+
+
     Private Sub Log(message As String)
         Try
             If Not LoggingEnabled Then Return
@@ -371,6 +376,9 @@ Public Class Form1
     Private Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         ' A Form1 betöltésekor csak a memóriában lévő beállításokat érvényesítjük, 
         ' mert a tényleges beolvasást már a Splash ablak elvégezte előttünk!
+        ' Button and dropdown menu enabling/disabling and recoloring to default.
+        btnSettings.Enabled = True : btnSettings.BackColor = colorEnabled : btnShutDown.Enabled = False : btnShutDown.BackColor = colorDisabled : btnStartUp.Enabled = True : btnStartUp.BackColor = colorEnabled
+        SettingsToolStripMenuItem.Enabled = True : ServerStartupToolStripMenuItem.Enabled = True : ServerShutdownToolStripMenuItem.Enabled = False : ExitServerShutdownToolStripMenuItem.Enabled = True
         BeallitasokBetoltese()
         AblakFülNevekFrissitese()
 
@@ -610,6 +618,10 @@ Public Class Form1
 
 
     Public Sub BeallitasokBetoltese()
+        ' button and menu enabling/disabling and recoloring to default.
+        btnSettings.Enabled = True : btnSettings.BackColor = colorEnabled : btnShutDown.Enabled = False : btnShutDown.BackColor = colorDisabled : btnStartUp.Enabled = True : btnStartUp.BackColor = colorEnabled
+        SettingsToolStripMenuItem.Enabled = True : ServerStartupToolStripMenuItem.Enabled = True : ServerShutdownToolStripMenuItem.Enabled = False : ExitServerShutdownToolStripMenuItem.Enabled = True
+
         Try
             Beallitasok.Clear()
             ' Ensure legacy Settings.dat is migrated to Settings.ini
@@ -675,7 +687,11 @@ Public Class Form1
     Private Sub InditasFolyamata()
         ' Biztonság kedvéért újra beolvassuk, hátha módosítottad a Settings-ben
         BeallitasokBetoltese()
-
+        ' Preventing forced restart by disabling buttons and changing their colors.
+        btnSettings.Enabled = False : btnSettings.BackColor = colorDisabled : btnStartUp.Enabled = False : btnStartUp.BackColor = colorDisabled : btnShutDown.Enabled = True : btnShutDown.BackColor = colorEnabled
+        ' We need to do the same for the menu items
+        ServerStartupToolStripMenuItem.Enabled = False : ServerShutdownToolStripMenuItem.Enabled = True : AboutToolStripMenuItem.Enabled = True : SettingsToolStripMenuItem.Enabled = False
+        ' Starting the applications.
         Dim inditoSzal As New Thread(AddressOf SzoftvercsomagInditasa)
         inditoSzal.IsBackground = True
         inditoSzal.Start()
@@ -819,7 +835,7 @@ Public Class Form1
         InditasFolyamata()
     End Sub
 
-    Private Sub SettingsToolStripMenuItem_Click(sender As Object, e As EventArgs) Handles SettingsToolStripMenuItem.Click
+    Private Sub SettingsToolStripMenuItem_Click(sender As Object, e As EventArgs)
         Try
             ' Disable the menu while the settings form is visible to prevent duplicates
             SettingsToolStripMenuItem.Enabled = False
@@ -1261,7 +1277,7 @@ Public Class Form1
         Application.Exit()
     End Sub
 
-    Private Sub AboutToolStripMenuItem_Click(sender As Object, e As EventArgs) Handles AboutToolStripMenuItem.Click
+    Private Sub AboutToolStripMenuItem_Click(sender As Object, e As EventArgs)
         ShowAboutBox()
     End Sub
     Private Sub ShowAboutBox()
@@ -1273,5 +1289,86 @@ Public Class Form1
         GC.Collect()
         GC.WaitForPendingFinalizers()
         GC.Collect() ' Második futás a beragadt Win32 handle-ök miatt
+    End Sub
+
+    Private Sub btnSettings_Click(sender As Object, e As EventArgs) Handles btnSettings.Click
+        ' Preventing multiple instances of Form2 from being opened. If it's already open, bring it to the front.
+        If Form2.Visible Then
+            Form2.BringToFront()
+        Else
+            Form2.Show()
+            ' buttons recolor and enable/disable.
+            btnSettings.Enabled = False : btnSettings.BackColor = colorDisabled : btnShutDown.Enabled = False : btnShutDown.BackColor = colorDisabled : btnStartUp.Enabled = False : btnStartUp.BackColor = colorDisabled
+        End If
+    End Sub
+
+    Private Sub SettingsToolStripMenuItem_Click_1(sender As Object, e As EventArgs) Handles SettingsToolStripMenuItem.Click
+        ' Preventing multiple instances of Form2 from being opened. If it's already open, bring it to the front.
+        If Form2.Visible Then
+            Form2.BringToFront()
+        Else
+            Form2.Show()
+            ' buttons recolor and enable/disable.
+            btnSettings.Enabled = False : btnSettings.BackColor = colorDisabled : btnShutDown.Enabled = False : btnShutDown.BackColor = colorDisabled : btnStartUp.Enabled = False : btnStartUp.BackColor = colorDisabled
+
+        End If
+    End Sub
+
+    Private Sub AboutToolStripMenuItem_Click_1(sender As Object, e As EventArgs) Handles AboutToolStripMenuItem.Click
+        Form4.ShowDialog(Me)
+    End Sub
+
+    Private Sub btnStartUp_Click(sender As Object, e As EventArgs) Handles btnStartUp.Click
+
+        InditasFolyamata()
+    End Sub
+
+    Private Sub tbnShutDown_Click(sender As Object, e As EventArgs) Handles btnShutDown.Click
+
+        ServerClose()
+    End Sub
+    Private Sub ServerClose()
+        Dim resp = MessageBox.Show("Shutdown all started applications?", "Confirm", MessageBoxButtons.YesNo, MessageBoxIcon.Question)
+        If resp <> DialogResult.Yes Then Return
+        Dim procs As New List(Of Process)()
+        ' buttons recolor and enable/disable.
+        btnSettings.Enabled = True : btnSettings.BackColor = colorEnabled : btnStartUp.Enabled = True : btnStartUp.BackColor = colorEnabled : btnShutDown.Enabled = False : btnShutDown.BackColor = colorDisabled
+        ' We need to do the same for the menu items
+        ServerStartupToolStripMenuItem.Enabled = True : ServerShutdownToolStripMenuItem.Enabled = False : AboutToolStripMenuItem.Enabled = True : SettingsToolStripMenuItem.Enabled = True
+        ' Shutting down the applications.
+
+        SyncLock StartedProcesses
+            For Each kvp In StartedProcesses
+                If kvp.Value IsNot Nothing AndAlso Not kvp.Value.HasExited Then
+                    procs.Add(kvp.Value)
+                End If
+            Next
+            StartedProcesses.Clear()
+        End SyncLock
+
+        For Each proc In procs
+            Try
+                If Not proc.HasExited Then
+                    Try
+                        proc.CloseMainWindow()
+                        If Not proc.WaitForExit(3000) Then
+                            proc.Kill()
+                            TabControl1.Invalidate() ' Refresh the tab control to reflect the shutdown
+                        End If
+                    Catch
+                        Try
+                            proc.Kill()
+                            TabControl1.Invalidate() ' Refresh the tab control to reflect the shutdown
+                        Catch
+                        End Try
+                    End Try
+                End If
+            Catch
+            End Try
+        Next
+    End Sub
+
+    Private Sub ServerShutdownToolStripMenuItem_Click(sender As Object, e As EventArgs) Handles ServerShutdownToolStripMenuItem.Click
+        ServerClose()
     End Sub
 End Class
