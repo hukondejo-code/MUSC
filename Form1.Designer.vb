@@ -41,6 +41,7 @@ Partial Class Form1
         btnShutDown = New Button()
         btnSettings = New Button()
         Panel3 = New Panel()
+        monitorLog = New RichTextBox()
         Panel9.SuspendLayout()
         MenuStrip1.SuspendLayout()
         TabControl1.SuspendLayout()
@@ -177,7 +178,7 @@ Partial Class Form1
         btnStartUp.Font = New Font("Segoe UI Semilight", 8F)
         btnStartUp.ForeColor = Color.WhiteSmoke
         btnStartUp.ImageAlign = ContentAlignment.BottomLeft
-        btnStartUp.Location = New Point(425, 15)
+        btnStartUp.Location = New Point(385, 15)
         btnStartUp.Name = "btnStartUp"
         btnStartUp.Size = New Size(84, 34)
         btnStartUp.TabIndex = 2
@@ -191,7 +192,7 @@ Partial Class Form1
         btnShutDown.Font = New Font("Segoe UI Semilight", 8F)
         btnShutDown.ForeColor = Color.WhiteSmoke
         btnShutDown.ImageAlign = ContentAlignment.BottomLeft
-        btnShutDown.Location = New Point(515, 15)
+        btnShutDown.Location = New Point(475, 15)
         btnShutDown.Name = "btnShutDown"
         btnShutDown.Size = New Size(84, 34)
         btnShutDown.TabIndex = 3
@@ -205,7 +206,7 @@ Partial Class Form1
         btnSettings.Font = New Font("Segoe UI Semilight", 8F)
         btnSettings.ForeColor = Color.WhiteSmoke
         btnSettings.ImageAlign = ContentAlignment.BottomLeft
-        btnSettings.Location = New Point(605, 15)
+        btnSettings.Location = New Point(565, 15)
         btnSettings.Name = "btnSettings"
         btnSettings.Size = New Size(84, 34)
         btnSettings.TabIndex = 4
@@ -215,15 +216,25 @@ Partial Class Form1
         ' Panel3
         ' 
         Panel3.BackColor = Color.LightGray
-        Panel3.BorderStyle = BorderStyle.FixedSingle
         Panel3.Controls.Add(btnSettings)
         Panel3.Controls.Add(btnStartUp)
+        Panel3.Controls.Add(monitorLog)
         Panel3.Controls.Add(btnShutDown)
         Panel3.Dock = DockStyle.Bottom
         Panel3.Location = New Point(0, 641)
         Panel3.Name = "Panel3"
         Panel3.Size = New Size(1130, 73)
         Panel3.TabIndex = 2
+        ' 
+        ' monitorLog
+        ' 
+        monitorLog.BackColor = Color.FromArgb(CByte(40), CByte(50), CByte(60))
+        monitorLog.ForeColor = Color.WhiteSmoke
+        monitorLog.Location = New Point(664, 6)
+        monitorLog.Name = "monitorLog"
+        monitorLog.Size = New Size(445, 60)
+        monitorLog.TabIndex = 5
+        monitorLog.Text = ""
         ' 
         ' Form1
         ' 
@@ -239,6 +250,7 @@ Partial Class Form1
         FormBorderStyle = FormBorderStyle.FixedSingle
         Icon = CType(resources.GetObject("$this.Icon"), Icon)
         MainMenuStrip = MenuStrip1
+        MaximizeBox = False
         Name = "Form1"
         StartPosition = FormStartPosition.CenterScreen
         Text = "MU SERVER CONTROL"
@@ -271,5 +283,6 @@ Partial Class Form1
     Friend WithEvents ServerShutdownToolStripMenuItem As ToolStripMenuItem
     Friend WithEvents Panel2 As Panel
     Friend WithEvents Panel3 As Panel
+    Friend WithEvents monitorLog As RichTextBox
 
 End Class
