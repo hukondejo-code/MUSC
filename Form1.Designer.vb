@@ -37,16 +37,17 @@ Partial Class Form1
         TabControl1 = New TabControl()
         TabPage1 = New TabPage()
         Panel1 = New Panel()
+        btnSettings = New Button()
         btnStartUp = New Button()
         btnShutDown = New Button()
-        btnSettings = New Button()
-        Panel3 = New Panel()
-        monitorLog = New RichTextBox()
+        SplitContainer1 = New SplitContainer()
         Panel9.SuspendLayout()
         MenuStrip1.SuspendLayout()
         TabControl1.SuspendLayout()
         TabPage1.SuspendLayout()
-        Panel3.SuspendLayout()
+        CType(SplitContainer1, ComponentModel.ISupportInitialize).BeginInit()
+        SplitContainer1.Panel1.SuspendLayout()
+        SplitContainer1.SuspendLayout()
         SuspendLayout()
         ' 
         ' Panel9
@@ -142,7 +143,6 @@ Partial Class Form1
         ' 
         TabControl1.Appearance = TabAppearance.Buttons
         TabControl1.Controls.Add(TabPage1)
-        TabControl1.Dock = DockStyle.Top
         TabControl1.DrawMode = TabDrawMode.OwnerDrawFixed
         TabControl1.ImeMode = ImeMode.NoControl
         TabControl1.Location = New Point(0, 26)
@@ -171,14 +171,28 @@ Partial Class Form1
         Panel1.Size = New Size(1116, 578)
         Panel1.TabIndex = 0
         ' 
+        ' btnSettings
+        ' 
+        btnSettings.BackColor = Color.FromArgb(CByte(80), CByte(80), CByte(80))
+        btnSettings.BackgroundImageLayout = ImageLayout.Stretch
+        btnSettings.Font = New Font("Segoe UI Semilight", 8.0F)
+        btnSettings.ForeColor = Color.WhiteSmoke
+        btnSettings.ImageAlign = ContentAlignment.BottomLeft
+        btnSettings.Location = New Point(587, 12)
+        btnSettings.Name = "btnSettings"
+        btnSettings.Size = New Size(84, 34)
+        btnSettings.TabIndex = 4
+        btnSettings.Text = "SETTINGS"
+        btnSettings.UseVisualStyleBackColor = False
+        ' 
         ' btnStartUp
         ' 
         btnStartUp.BackColor = Color.FromArgb(CByte(80), CByte(80), CByte(80))
         btnStartUp.BackgroundImageLayout = ImageLayout.Stretch
-        btnStartUp.Font = New Font("Segoe UI Semilight", 8F)
+        btnStartUp.Font = New Font("Segoe UI Semilight", 8.0F)
         btnStartUp.ForeColor = Color.WhiteSmoke
         btnStartUp.ImageAlign = ContentAlignment.BottomLeft
-        btnStartUp.Location = New Point(385, 15)
+        btnStartUp.Location = New Point(407, 12)
         btnStartUp.Name = "btnStartUp"
         btnStartUp.Size = New Size(84, 34)
         btnStartUp.TabIndex = 2
@@ -189,61 +203,39 @@ Partial Class Form1
         ' 
         btnShutDown.BackColor = Color.FromArgb(CByte(80), CByte(80), CByte(80))
         btnShutDown.BackgroundImageLayout = ImageLayout.Stretch
-        btnShutDown.Font = New Font("Segoe UI Semilight", 8F)
+        btnShutDown.Font = New Font("Segoe UI Semilight", 8.0F)
         btnShutDown.ForeColor = Color.WhiteSmoke
         btnShutDown.ImageAlign = ContentAlignment.BottomLeft
-        btnShutDown.Location = New Point(475, 15)
+        btnShutDown.Location = New Point(497, 12)
         btnShutDown.Name = "btnShutDown"
         btnShutDown.Size = New Size(84, 34)
         btnShutDown.TabIndex = 3
         btnShutDown.Text = "SHUTDOWN"
         btnShutDown.UseVisualStyleBackColor = False
         ' 
-        ' btnSettings
+        ' SplitContainer1
         ' 
-        btnSettings.BackColor = Color.FromArgb(CByte(80), CByte(80), CByte(80))
-        btnSettings.BackgroundImageLayout = ImageLayout.Stretch
-        btnSettings.Font = New Font("Segoe UI Semilight", 8F)
-        btnSettings.ForeColor = Color.WhiteSmoke
-        btnSettings.ImageAlign = ContentAlignment.BottomLeft
-        btnSettings.Location = New Point(565, 15)
-        btnSettings.Name = "btnSettings"
-        btnSettings.Size = New Size(84, 34)
-        btnSettings.TabIndex = 4
-        btnSettings.Text = "SETTINGS"
-        btnSettings.UseVisualStyleBackColor = False
+        SplitContainer1.Dock = DockStyle.Bottom
+        SplitContainer1.Location = New Point(0, 640)
+        SplitContainer1.Name = "SplitContainer1"
         ' 
-        ' Panel3
+        ' SplitContainer1.Panel1
         ' 
-        Panel3.BackColor = Color.LightGray
-        Panel3.Controls.Add(btnSettings)
-        Panel3.Controls.Add(btnStartUp)
-        Panel3.Controls.Add(monitorLog)
-        Panel3.Controls.Add(btnShutDown)
-        Panel3.Dock = DockStyle.Bottom
-        Panel3.Location = New Point(0, 641)
-        Panel3.Name = "Panel3"
-        Panel3.Size = New Size(1130, 73)
-        Panel3.TabIndex = 2
-        ' 
-        ' monitorLog
-        ' 
-        monitorLog.BackColor = Color.FromArgb(CByte(40), CByte(50), CByte(60))
-        monitorLog.ForeColor = Color.WhiteSmoke
-        monitorLog.Location = New Point(664, 6)
-        monitorLog.Name = "monitorLog"
-        monitorLog.Size = New Size(445, 60)
-        monitorLog.TabIndex = 5
-        monitorLog.Text = ""
+        SplitContainer1.Panel1.Controls.Add(btnSettings)
+        SplitContainer1.Panel1.Controls.Add(btnStartUp)
+        SplitContainer1.Panel1.Controls.Add(btnShutDown)
+        SplitContainer1.Size = New Size(1130, 60)
+        SplitContainer1.SplitterDistance = 686
+        SplitContainer1.TabIndex = 2
         ' 
         ' Form1
         ' 
-        AutoScaleDimensions = New SizeF(7F, 15F)
+        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
         AutoScaleMode = AutoScaleMode.Font
         AutoSize = True
-        BackColor = Color.DimGray
-        ClientSize = New Size(1130, 714)
-        Controls.Add(Panel3)
+        BackColor = Color.LightGray
+        ClientSize = New Size(1130, 700)
+        Controls.Add(SplitContainer1)
         Controls.Add(TabControl1)
         Controls.Add(Panel9)
         ForeColor = Color.Black
@@ -260,7 +252,9 @@ Partial Class Form1
         MenuStrip1.PerformLayout()
         TabControl1.ResumeLayout(False)
         TabPage1.ResumeLayout(False)
-        Panel3.ResumeLayout(False)
+        SplitContainer1.Panel1.ResumeLayout(False)
+        CType(SplitContainer1, ComponentModel.ISupportInitialize).EndInit()
+        SplitContainer1.ResumeLayout(False)
         ResumeLayout(False)
     End Sub
 
@@ -282,7 +276,6 @@ Partial Class Form1
     Friend WithEvents btnSettings As Button
     Friend WithEvents ServerShutdownToolStripMenuItem As ToolStripMenuItem
     Friend WithEvents Panel2 As Panel
-    Friend WithEvents Panel3 As Panel
-    Friend WithEvents monitorLog As RichTextBox
+    Friend WithEvents SplitContainer1 As SplitContainer
 
 End Class

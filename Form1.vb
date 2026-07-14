@@ -40,23 +40,95 @@ Public Class Form1
     Private ReadOnly logLock As New Object()
     Private ReadOnly LogFilePath As String = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "monitor.log")
     Private LoggingEnabled As Boolean = False
+    Private monitorLog As TextBox ' A TextBox, amely a log üzeneteket jeleníti meg
+    Private Const MAX_LOG_CHARS As Integer = 50000 ' Memóriavédelem a TextBox túlcsordulása ellen
     ' Color scheme for enabled/disabled buttons
     Public colorEnabled As Color = Color.FromArgb(80, 80, 80)
     Public colorDisabled As Color = Color.FromArgb(150, 150, 150)
     Public tabBackColor As Color = Color.FromArgb(10, 0, 0, 0) ' Set the background color to transparent
 
+    Private Sub ToggleLogging()
+        If LoggingEnabled Then
+            If monitorLog Is Nothing Then
+                ' monitorLog redesign
+                ' A vad fekete helyett a Form sötétszürke panel-háttere (beágyazott ablakok stílusa)
+                ' A vakító neon-zöld helyett egy elegánsabb, tompább terminal-zöld
+                ' Kicsit kompaktabb, modernebb fejlesztői betűkészlet
+                monitorLog = New TextBox With {
+                .Multiline = True,
+                .ScrollBars = ScrollBars.Vertical,
+                .ReadOnly = True,
+                .BackColor = Color.FromArgb(45, 45, 48),
+                .ForeColor = Color.FromArgb(0, 200, 100),
+                .Font = New Font("Segoe UI Mono", 9.0F, FontStyle.Regular),
+                .Dock = DockStyle.Fill,
+                .BorderStyle = BorderStyle.None
+            }
+
+                ' Vizuális egyensúly: adunk egy minimális keretet a panelnek, hogy ne tapadjon a szélére a szöveg
+
+                SplitContainer1.Panel2.BackColor = Color.FromArgb(45, 45, 48) ' Panel háttér kiegyenlítése
+
+                SplitContainer1.Panel2.Controls.Add(monitorLog)
+            End If
+
+            SplitContainer1.Panel2.Visible = True
+            SplitContainer1.Panel2.BringToFront()
+            monitorLog.Visible = True
+            monitorLog.BringToFront()
+            SplitContainer1.Panel2.Refresh()
+        Else
+            If monitorLog IsNot Nothing Then
+                SplitContainer1.Panel2.Controls.Remove(monitorLog)
+                monitorLog.Dispose()
+                monitorLog = Nothing
+                SplitContainer1.Panel2.Visible = False
+            End If
+        End If
+    End Sub
+
+
+
+
     Private Sub Log(message As String)
         Try
             If Not LoggingEnabled Then Return
+
+            Dim entry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}{Environment.NewLine}"
+
+            ' 1. Fájlba írás háttérszálon (hogy ne akassza meg a UI-t)
             SyncLock logLock
                 Try
-                    EnsureLogRotation()
+                    ' EnsureLogRotation() ' Ide jön a saját rotációs logikád
+                    File.AppendAllText(LogFilePath, entry, Encoding.UTF8)
                 Catch
+                    ' Csendes hibakezelés a merevlemez hibák ellen
                 End Try
             End SyncLock
+
+            ' 2. Szálbiztos UI frissítés és automatikus legörgetés
+            If monitorLog IsNot Nothing AndAlso monitorLog.IsHandleCreated Then
+                monitorLog.BeginInvoke(Sub()
+                                           Try
+                                               ' Memóriavédelem: Ha túl hosszú a szöveg, vágjuk le az elejét
+                                               If monitorLog.TextLength > MAX_LOG_CHARS Then
+                                                   monitorLog.Text = monitorLog.Text.Substring(MAX_LOG_CHARS \ 2)
+                                               End If
+
+                                               ' Szöveg hozzáfűzése (felülírás helyett)
+                                               monitorLog.AppendText(entry)
+
+                                               ' Automatikus görgetés az aljára
+                                               monitorLog.SelectionStart = monitorLog.TextLength
+                                               monitorLog.ScrollToCaret()
+                                           Catch
+                                           End Try
+                                       End Sub)
+            End If
         Catch
         End Try
     End Sub
+
 
     Private Sub EnsureLogRotation()
         Try
@@ -260,7 +332,7 @@ Public Class Form1
                     If logDir Is Nothing Then logDir = mappa
 
                     Dim targets As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
-                    For Each pattern In New String() {"*.log", "*.txt", "error.log"}
+                    For Each pattern In New String() {"*.log", "*.dmp", "error.log", "error.txt"}
                         Try
                             For Each f In Directory.GetFiles(logDir, pattern, SearchOption.TopDirectoryOnly)
                                 targets.Add(f)
@@ -481,6 +553,8 @@ Public Class Form1
                                                               Dim iniPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings.ini")
                                                               Dim existing = If(File.Exists(iniPath), SettingsStore.ReadSettingsFromFile(iniPath), New Dictionary(Of String, String)())
                                                               existing("LOGGING_ENABLED") = If(LoggingEnabled, "1", "0")
+                                                              ' hooking monitorLog textbox creation to the toggle event, so we can force the creation of the TextBox when logging is enabled, and remove it when disabled
+                                                              ToggleLogging()
                                                               SettingsStore.WriteSettingsToFile(iniPath, existing)
                                                               ' update in-memory map
                                                               If Beallitasok Is Nothing Then Beallitasok = New Dictionary(Of String, String)()
