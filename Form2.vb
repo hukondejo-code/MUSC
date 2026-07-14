@@ -762,7 +762,6 @@ Partial Public Class Form2
 
             ' Refresh Form1 and hide (do not dispose so user can re-open settings)
             Form1.BeallitasokBetoltese()
-            MessageBox.Show("Settings saved successfully!", "Save", MessageBoxButtons.OK, MessageBoxIcon.Information)
             Me.Hide()
             Form1.Log("Settings saved successfully!")
             ' BIZTONSÁGOS ÉS AGRESSZÍV FLUSH AZ ELREJTÉS UTÁN:

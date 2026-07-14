@@ -60,7 +60,7 @@ Public Class Form1
                 .ReadOnly = True,
                 .BackColor = Color.FromArgb(45, 45, 48),
                 .ForeColor = Color.FromArgb(0, 200, 100),
-                .Font = New Font("Segoe UI Mono", 9.0F, FontStyle.Regular),
+                .Font = New Font("Lucida Console", 8.0F, FontStyle.Regular),
                 .Dock = DockStyle.Fill,
                 .BorderStyle = BorderStyle.None
             }
@@ -86,9 +86,6 @@ Public Class Form1
             End If
         End If
     End Sub
-
-
-
 
     Public Sub Log(message As String)
         Try
@@ -906,9 +903,6 @@ Public Class Form1
 
     End Sub
 
-
-
-
     Private Sub SettingsToolStripMenuItem_Click(sender As Object, e As EventArgs)
         Try
             ' Disable the menu while the settings form is visible to prevent duplicates
@@ -1402,15 +1396,7 @@ Public Class Form1
     End Sub
 
     Private Sub SettingsToolStripMenuItem_Click_1(sender As Object, e As EventArgs) Handles SettingsToolStripMenuItem.Click
-        ' Preventing multiple instances of Form2 from being opened. If it's already open, bring it to the front.
-        If Form2.Visible Then
-            Form2.BringToFront()
-        Else
-            Form2.Show()
-            ' buttons recolor and enable/disable.
-            btnSettings.Enabled = False : btnSettings.BackColor = colorDisabled : btnShutDown.Enabled = False : btnShutDown.BackColor = colorDisabled : btnStartUp.Enabled = False : btnStartUp.BackColor = colorDisabled
-
-        End If
+        btnSettings.PerformClick()
     End Sub
 
     Private Sub AboutToolStripMenuItem_Click_1(sender As Object, e As EventArgs) Handles AboutToolStripMenuItem.Click
@@ -1425,7 +1411,27 @@ Public Class Form1
     End Sub
 
     Private Sub btnShutDown_Click(sender As Object, e As EventArgs) Handles btnShutDown.Click
-        ShutdownStartedApplications()
+        Task.Run(Sub()
+                     Try
+                         ShutdownStartedApplications()
+                     Catch
+                     End Try
+                     ' after the shutdown is finished we try to re-enable the buttons and menu items on the UI thread, if the form is still alive.
+                     If Me.IsHandleCreated Then
+                         Me.BeginInvoke(Sub()
+                                            Try
+                                                btnSettings.Enabled = True : btnSettings.BackColor = colorEnabled
+                                                btnStartUp.Enabled = True : btnStartUp.BackColor = colorEnabled
+                                                btnShutDown.Enabled = False : btnShutDown.BackColor = colorDisabled
+                                                SettingsToolStripMenuItem.Enabled = True
+                                                ServerStartupToolStripMenuItem.Enabled = True
+                                                ServerShutdownToolStripMenuItem.Enabled = False
+                                                ExitServerShutdownToolStripMenuItem.Enabled = True
+                                            Catch
+                                            End Try
+                                        End Sub)
+                     End If
+                 End Sub)
     End Sub
 
 

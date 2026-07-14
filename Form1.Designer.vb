@@ -175,10 +175,10 @@ Partial Class Form1
         ' 
         btnSettings.BackColor = Color.FromArgb(CByte(80), CByte(80), CByte(80))
         btnSettings.BackgroundImageLayout = ImageLayout.Stretch
-        btnSettings.Font = New Font("Segoe UI Semilight", 8.0F)
+        btnSettings.Font = New Font("Segoe UI Semibold", 8.0F)
         btnSettings.ForeColor = Color.WhiteSmoke
         btnSettings.ImageAlign = ContentAlignment.BottomLeft
-        btnSettings.Location = New Point(587, 12)
+        btnSettings.Location = New Point(598, 14)
         btnSettings.Name = "btnSettings"
         btnSettings.Size = New Size(84, 34)
         btnSettings.TabIndex = 4
@@ -189,10 +189,10 @@ Partial Class Form1
         ' 
         btnStartUp.BackColor = Color.FromArgb(CByte(80), CByte(80), CByte(80))
         btnStartUp.BackgroundImageLayout = ImageLayout.Stretch
-        btnStartUp.Font = New Font("Segoe UI Semilight", 8.0F)
+        btnStartUp.Font = New Font("Segoe UI Semibold", 8.0F)
         btnStartUp.ForeColor = Color.WhiteSmoke
         btnStartUp.ImageAlign = ContentAlignment.BottomLeft
-        btnStartUp.Location = New Point(407, 12)
+        btnStartUp.Location = New Point(418, 14)
         btnStartUp.Name = "btnStartUp"
         btnStartUp.Size = New Size(84, 34)
         btnStartUp.TabIndex = 2
@@ -203,10 +203,10 @@ Partial Class Form1
         ' 
         btnShutDown.BackColor = Color.FromArgb(CByte(80), CByte(80), CByte(80))
         btnShutDown.BackgroundImageLayout = ImageLayout.Stretch
-        btnShutDown.Font = New Font("Segoe UI Semilight", 8.0F)
+        btnShutDown.Font = New Font("Segoe UI Semibold", 8.0F)
         btnShutDown.ForeColor = Color.WhiteSmoke
         btnShutDown.ImageAlign = ContentAlignment.BottomLeft
-        btnShutDown.Location = New Point(497, 12)
+        btnShutDown.Location = New Point(508, 14)
         btnShutDown.Name = "btnShutDown"
         btnShutDown.Size = New Size(84, 34)
         btnShutDown.TabIndex = 3
@@ -225,7 +225,7 @@ Partial Class Form1
         SplitContainer1.Panel1.Controls.Add(btnStartUp)
         SplitContainer1.Panel1.Controls.Add(btnShutDown)
         SplitContainer1.Size = New Size(1130, 60)
-        SplitContainer1.SplitterDistance = 686
+        SplitContainer1.SplitterDistance = 685
         SplitContainer1.TabIndex = 2
         ' 
         ' Form1
