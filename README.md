@@ -12,8 +12,49 @@ MU SERVER CONTROL (MUSC) is a complete, lightweight, and robust private server m
 * **Visual Status Monitoring**: Tab colors dynamically reflect process states in real-time (Red = Unconfigured, Grey = Configured but stopped, Green = Running).
 * **Robust Multi-threading**: Handles heavy sequential launch operations on separate background threads to prevent UI freezing and ensure fluid user experience.
 * **Safe Working Directories**: Automatically executes programs out of their native directories (`WorkingDirectory`) to maintain SQL, database, and network connectivity dependencies.
+---
+# MUSC_v1.4.0 — (Control & Layout Update)
+🚀 MU Server Control (MUSC) v1.4.0 — Smart Interlocking & Layout Precision
+We are excited to announce the release of MUSC v1.4.0. This milestone release focuses heavily on operational safety through advanced UI interlocking logic, native process protection, and comprehensive layout engine refinements to ensure a flawless user experience under any desktop scaling scenario.
+
+## 🔥 New in v1.4.0: The Control & Layout Update
+
+**Smart UI Interlocking & Application Shielding**
+To eliminate catastrophic data corruption or port conflicts caused by accidental duplicate executions, v1.4.0 introduces a state-aware control interlocking system:
+
+**Dynamic Control Buttons:** 
+Brand new integrated control action buttons have been introduced across Form1 to streamline manual process cycles.
+Proactive Re-launch Prevention: A thread-safe checking routine has been baked directly into the ToolStripMenuItem and button click events. The 5 minute Automatic Restart feature and the Monitor Engine are still stong and well written additions of the software.
+
+
+**Prevention Logic:**
+The application manager now actively monitors active processes. If a managed server application is currently running, the corresponding launch triggers are instantly grayed out/interlocked, completely preventing users from forcing a manual restart on an already active server instance.
+
+**Native FlowLayout Layout Engine Fixes (Vertical-Only Lock)**
+We have completely rewritten how row resizing behaves inside the main application tab to eliminate annoying layout glitches:
+
+**Strict Vertical-Only Scroll** 
+Fixed a legacy Windows Forms bug where horizontal scrollbars would erratically trigger alongside vertical ones.
+Explicit Bounds Alignment: The resizing engine now dynamically queries SystemInformation.VerticalScrollBarWidth and enforces FlowDirection.TopDown with WrapContents = False. This forces all application rows to fit perfectly within the viewport boundaries, completely locking scrolling to the Y-axis.
+
+### 💻 Performance and stability first
+Despite how many feature we built in so far the Manager still kept it's low resource cost. Running multiple heavy server applications and managing win32API commands with a ground breaking 17,2 MB memory usage.
+
+### 🛠️ Detailed Changelog (v1.4.0)
+
+***🎨 User Interface & Experience (UI/UX)***
+Added unified native control buttons to Form1 for granular runtime process handling.
+Added an automatic UI layout recalculation handler bound to the main window's Resize event.
+Fixed an issue where FlowLayoutPanel (flowRows) would display a horizontal scrollbar by strictly clamping inner control widths to the client area minus the vertical scrollbar width.
+Fixed layout breaking bugs by enforcing WrapContents = False at the code level during layout initialization.
+
+***⚙️ Core Logic & Process Management***
+Implemented a robust state-locking mechanism to protect active server processes from duplicated run commands.
+Integrated safety validation checks into the top menu's ToolStripMenuItem triggers to mirror the physical button states.
+Refactored Form1, Form2, and Form3 layout structures to support proper control hierarchies when controls are nested inside dynamic TabControl structures.
 
 ---
+
 # 🔥 Changelog - v1.3.0 (Dynamic Port Upgrade)
 Previously, MUSC relied on static, hardcoded port assignments based on process names. Version 1.3.0 completely breaks these boundaries:
 
@@ -24,9 +65,9 @@ Previously, MUSC relied on static, hardcoded port assignments based on process n
 ### Refactored
 - **Bulletproof Save & Reindex Engine:** Rewrote the background SaveSettingsToIni() and ReindexAndSyncDelays() routines. Eliminated critical closure variable capture bugs and localized event handlers to guarantee zero memory leaks during row removal.
 
-###Improved
+### Improved
 - **Visual Layout Adaptability:** Polished control anchors and layout widths within the dynamic FlowLayoutPanel container. Labels and text alignment are perfectly normalized across different Windows scaling modes.
-###Maintained
+### Maintained
 - **19.3MB Idle Footprint:** Despite adding heavy dynamic UI handling, internal memory optimization keeps the idle footprint at a record-breaking 19.3 MB with 0% CPU utilization.
 
 
