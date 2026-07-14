@@ -53,9 +53,6 @@ Public Class Form1
                     EnsureLogRotation()
                 Catch
                 End Try
-                Dim entry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}{Environment.NewLine}"
-                monitorLog.Text = entry
-                File.AppendAllText(LogFilePath, entry, Encoding.UTF8)
             End SyncLock
         Catch
         End Try
