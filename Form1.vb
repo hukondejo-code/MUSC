@@ -90,7 +90,7 @@ Public Class Form1
 
 
 
-    Private Sub Log(message As String)
+    Public Sub Log(message As String)
         Try
             If Not LoggingEnabled Then Return
 
@@ -907,9 +907,7 @@ Public Class Form1
     End Sub
 
 
-    Private Sub ServerStartupToolStripMenuItem_Click(sender As Object, e As EventArgs) Handles ServerStartupToolStripMenuItem.Click
-        InditasFolyamata()
-    End Sub
+
 
     Private Sub SettingsToolStripMenuItem_Click(sender As Object, e As EventArgs)
         Try
@@ -967,51 +965,102 @@ Public Class Form1
         Dim resp = MessageBox.Show("Shutdown all started embedded applications and exit?", "Confirm", MessageBoxButtons.YesNo, MessageBoxIcon.Question)
         If resp <> DialogResult.Yes Then Return
 
-        ' First try to shut down any started embedded applications
-        ShutdownStartedApplications()
-
+        ' First try to shut down any started embedded applications as asynchronous tasks, so we don't block the UI thread and can log progress.
+        Task.Run(Sub()
+                     Try
+                         ShutdownStartedApplications()
+                     Catch
+                     End Try
+                     ' after the shutdown is finished we try to re-enable the buttons and menu items on the UI thread, if the form is still alive.
+                     If Me.IsHandleCreated Then
+                         Me.BeginInvoke(Sub()
+                                            Try
+                                                btnSettings.Enabled = True : btnSettings.BackColor = colorEnabled
+                                                btnStartUp.Enabled = True : btnStartUp.BackColor = colorEnabled
+                                                btnShutDown.Enabled = False : btnShutDown.BackColor = colorDisabled
+                                                SettingsToolStripMenuItem.Enabled = True
+                                                ServerStartupToolStripMenuItem.Enabled = True
+                                                ServerShutdownToolStripMenuItem.Enabled = False
+                                                ExitServerShutdownToolStripMenuItem.Enabled = True
+                                            Catch
+                                            End Try
+                                        End Sub)
+                     End If
+                 End Sub)
         ' Then exit the application
         Application.Exit()
+
     End Sub
 
-    Private Sub BtnShutdownApps_Click(sender As Object, e As EventArgs) Handles BtnShutdownApps.Click
-        Dim resp = MessageBox.Show("Shutdown all started applications?", "Confirm", MessageBoxButtons.YesNo, MessageBoxIcon.Question)
-        If resp <> DialogResult.Yes Then Return
-
-        ShutdownStartedApplications()
-    End Sub
 
     Private Sub ShutdownStartedApplications()
+        ' 1. A fő lock előtt logolunk, hogy a deadlock ne akaszthassa meg az első üzenetet
+        Log("[SHUTDOWN] Global server shutdown sequence initiated by user.")
+
         Dim procs As New List(Of Process)()
+
+        ' Csak lemásoljuk a referenciákat a lokális listába, de NEM ürítjük ki a szótárt az indítás előtt!
         SyncLock StartedProcesses
             For Each kvp In StartedProcesses
                 If kvp.Value IsNot Nothing AndAlso Not kvp.Value.HasExited Then
                     procs.Add(kvp.Value)
                 End If
             Next
+        End SyncLock
+
+        ' 2. Leállítási ciklus futtatása
+        For Each proc In procs
+            Dim procName As String = "Unknown Process"
+            Dim pid As Integer = 0
+
+            Try
+                procName = proc.ProcessName
+                pid = proc.Id
+            Catch
+            End Try
+
+            Try
+                If Not proc.HasExited Then
+                    Log($"[SHUTDOWN] Sending close signal to {procName} (PID: {pid})...")
+
+                    Dim cleanExit As Boolean = False
+                    Try
+                        proc.CloseMainWindow()
+                        TabControl1.Invalidate() ' Refresh the tab control to reflect the shutdown
+                        If proc.WaitForExit(3000) Then
+                            cleanExit = True
+                        End If
+                    Catch
+                    End Try
+
+                    If Not cleanExit Then
+                        Log($"[WARN] {procName} (PID: {pid}) did not respond cleanly. Forcing termination...")
+                        Try
+                            proc.Kill()
+                            TabControl1.Invalidate() ' Refresh the tab control to reflect the shutdown
+                            proc.WaitForExit(1000)
+                            Log($"[SHUTDOWN] {procName} (PID: {pid}) forcefully terminated.")
+                        Catch ex As Exception
+                            Log($"[ERROR] Failed to kill {procName} (PID: {pid}): {ex.Message}")
+                        End Try
+                    Else
+                        Log($"[SHUTDOWN] {procName} (PID: {pid}) exited cleanly.")
+                    End If
+                Else
+                    Log($"[SHUTDOWN] {procName} (PID: {pid}) had already exited before signal.")
+                End If
+            Catch ex As Exception
+                Log($"[ERROR] Unexpected error during shutdown of PID {pid}: {ex.Message}")
+            End Try
+        Next
+        ' 3. ZÁRÓ LÉPÉS: Miután minden leállt, biztonságosan kiürítjük a globális listát
+        SyncLock StartedProcesses
             StartedProcesses.Clear()
         End SyncLock
 
-        For Each proc In procs
-            Try
-                If Not proc.HasExited Then
-                    ' try graceful close
-                    Try
-                        proc.CloseMainWindow()
-                        If Not proc.WaitForExit(3000) Then
-                            proc.Kill()
-                        End If
-                    Catch
-                        Try
-                            proc.Kill()
-                        Catch
-                        End Try
-                    End Try
-                End If
-            Catch
-            End Try
-        Next
+        Log("[SHUTDOWN] Global server shutdown sequence completed. All slots cleared.")
     End Sub
+
 
     ' --- Process monitor: periodically check and restart stopped apps when enabled ---
     Private Sub StartProcessMonitor()
@@ -1253,38 +1302,6 @@ Public Class Form1
         End Try
     End Sub
 
-    Private Sub ShutdownSingleApplication(index As Integer)
-        Try
-            Dim proc As Process = Nothing
-            SyncLock StartedProcesses
-                If StartedProcesses.ContainsKey(index) Then
-                    proc = StartedProcesses(index)
-                    StartedProcesses.Remove(index)
-                End If
-            End SyncLock
-
-            If proc Is Nothing Then
-                MessageBox.Show($"No tracked process for slot {index}.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information)
-                Return
-            End If
-
-            If proc IsNot Nothing AndAlso Not proc.HasExited Then
-                Try
-                    proc.CloseMainWindow()
-                    If Not proc.WaitForExit(3000) Then
-                        proc.Kill()
-                    End If
-                Catch
-                    Try
-                        proc.Kill()
-                    Catch
-                    End Try
-                End Try
-            End If
-        Catch ex As Exception
-            MessageBox.Show("Error shutting down application: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
-        End Try
-    End Sub
     ' --- ÚJRAÉLESZTVE: A fülek sötétítése és dinamikus színezése állapot szerint ---
     Private Sub TabControl1_DrawItem(sender As Object, e As DrawItemEventArgs) Handles TabControl1.DrawItem
         ' Ha üres a TabControl, nincs mit rajzolni
@@ -1401,56 +1418,18 @@ Public Class Form1
     End Sub
 
     Private Sub btnStartUp_Click(sender As Object, e As EventArgs) Handles btnStartUp.Click
-
         InditasFolyamata()
     End Sub
-
-    Private Sub tbnShutDown_Click(sender As Object, e As EventArgs) Handles btnShutDown.Click
-
-        ServerClose()
+    Private Sub ServerStartupToolStripMenuItem_Click(sender As Object, e As EventArgs) Handles ServerStartupToolStripMenuItem.Click
+        btnStartUp.PerformClick()
     End Sub
-    Private Sub ServerClose()
-        Dim resp = MessageBox.Show("Shutdown all started applications?", "Confirm", MessageBoxButtons.YesNo, MessageBoxIcon.Question)
-        If resp <> DialogResult.Yes Then Return
-        Dim procs As New List(Of Process)()
-        ' buttons recolor and enable/disable.
-        btnSettings.Enabled = True : btnSettings.BackColor = colorEnabled : btnStartUp.Enabled = True : btnStartUp.BackColor = colorEnabled : btnShutDown.Enabled = False : btnShutDown.BackColor = colorDisabled
-        ' We need to do the same for the menu items
-        ServerStartupToolStripMenuItem.Enabled = True : ServerShutdownToolStripMenuItem.Enabled = False : AboutToolStripMenuItem.Enabled = True : SettingsToolStripMenuItem.Enabled = True
-        ' Shutting down the applications.
 
-        SyncLock StartedProcesses
-            For Each kvp In StartedProcesses
-                If kvp.Value IsNot Nothing AndAlso Not kvp.Value.HasExited Then
-                    procs.Add(kvp.Value)
-                End If
-            Next
-            StartedProcesses.Clear()
-        End SyncLock
-
-        For Each proc In procs
-            Try
-                If Not proc.HasExited Then
-                    Try
-                        proc.CloseMainWindow()
-                        If Not proc.WaitForExit(3000) Then
-                            proc.Kill()
-                            TabControl1.Invalidate() ' Refresh the tab control to reflect the shutdown
-                        End If
-                    Catch
-                        Try
-                            proc.Kill()
-                            TabControl1.Invalidate() ' Refresh the tab control to reflect the shutdown
-                        Catch
-                        End Try
-                    End Try
-                End If
-            Catch
-            End Try
-        Next
+    Private Sub btnShutDown_Click(sender As Object, e As EventArgs) Handles btnShutDown.Click
+        ShutdownStartedApplications()
     End Sub
+
 
     Private Sub ServerShutdownToolStripMenuItem_Click(sender As Object, e As EventArgs) Handles ServerShutdownToolStripMenuItem.Click
-        ServerClose()
+        btnShutDown.PerformClick()
     End Sub
 End Class

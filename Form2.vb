@@ -764,7 +764,7 @@ Partial Public Class Form2
             Form1.BeallitasokBetoltese()
             MessageBox.Show("Settings saved successfully!", "Save", MessageBoxButtons.OK, MessageBoxIcon.Information)
             Me.Hide()
-
+            Form1.Log("Settings saved successfully!")
             ' BIZTONSÁGOS ÉS AGRESSZÍV FLUSH AZ ELREJTÉS UTÁN:
             GC.Collect()
             GC.WaitForPendingFinalizers()
